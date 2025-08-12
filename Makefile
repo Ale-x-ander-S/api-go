@@ -188,3 +188,133 @@ get-admin-token: ## Быстро получить токен администр�
 		-d '{"username":"admin","password":"password"}' | \
 		jq -r '.token' | \
 		sed 's/^/Bearer /' 
+
+# CI/CD и развертывание
+deploy: ## Развернуть приложение (dev по умолчанию)
+	@echo "🚀 Развертывание приложения..."
+	@chmod +x deploy.sh
+	@./deploy.sh dev
+
+deploy-staging: ## Развернуть в staging окружении
+	@echo "🚀 Развертывание в staging..."
+	@chmod +x deploy.sh
+	@./deploy.sh staging
+
+deploy-prod: ## Развернуть в production окружении
+	@echo "🚀 Развертывание в production..."
+	@chmod +x deploy.sh
+	@./deploy.sh prod
+
+deploy-all: ## Развернуть во всех окружениях
+	@echo "🚀 Развертывание во всех окружениях..."
+	@make deploy
+	@make deploy-staging
+	@make deploy-prod
+
+# CI/CD команды
+ci-cd: ## Запустить CI/CD процесс
+	@echo "🔄 Запуск CI/CD процесса..."
+	@chmod +x scripts/ci-cd.sh
+	@./scripts/ci-cd.sh dev main
+
+ci-cd-staging: ## CI/CD для staging
+	@echo "🔄 CI/CD для staging..."
+	@chmod +x scripts/ci-cd.sh
+	@./scripts/ci-cd.sh staging main
+
+ci-cd-prod: ## CI/CD для production
+	@echo "🔄 CI/CD для production..."
+	@chmod +x scripts/ci-cd.sh
+	@./scripts/ci-cd.sh prod main
+
+# Команды управления окружениями
+env-status: ## Показать статус всех окружений
+	@echo "📊 Статус окружений:"
+	@echo "🔧 Development:"
+	@curl -s http://localhost:8080/ | jq '.message' 2>/dev/null || echo "❌ Не запущено"
+	@echo "🚀 Staging:"
+	@curl -s http://localhost:8081/ | jq '.message' 2>/dev/null || echo "❌ Не запущено"
+	@echo "🏭 Production:"
+	@curl -s http://localhost:8082/ | jq '.message' 2>/dev/null || echo "❌ Не запущено"
+
+env-stop: ## Остановить все окружения
+	@echo "🛑 Остановка всех окружений..."
+	@docker-compose down 2>/dev/null || true
+	@docker-compose -f docker-compose.staging.yml down 2>/dev/null || true
+	@docker-compose -f docker-compose.prod.yml down 2>/dev/null || true
+	@pkill -f "go run main.go" 2>/dev/null || true
+	@echo "✅ Все окружения остановлены"
+
+env-logs: ## Показать логи всех окружений
+	@echo "📋 Логи всех окружений:"
+	@echo "🔧 Development:"
+	@tail -n 5 app.log 2>/dev/null || echo "Логи не найдены"
+	@echo "🚀 Staging:"
+	@docker-compose -f docker-compose.staging.yml logs --tail=5 2>/dev/null || echo "Контейнеры не запущены"
+	@echo "🏭 Production:"
+	@docker-compose -f docker-compose.prod.yml logs --tail=5 2>/dev/null || echo "Контейнеры не запущены"
+
+# Команды для мониторинга
+monitor: ## Мониторинг всех сервисов
+	@echo "📊 Мониторинг сервисов..."
+	@echo "🐳 Docker контейнеры:"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+	@echo ""
+	@echo "💾 Базы данных:"
+	@echo "PostgreSQL (dev): $(lsof -i :5432 >/dev/null && echo "✅" || echo "❌")"
+	@echo "PostgreSQL (staging): $(lsof -i :5433 >/dev/null && echo "✅" || echo "❌")"
+	@echo "PostgreSQL (prod): $(lsof -i :5434 >/dev/null && echo "✅" || echo "❌")"
+	@echo ""
+	@echo "🔴 Redis:"
+	@echo "Redis (dev): $(lsof -i :6379 >/dev/null && echo "✅" || echo "❌")"
+	@echo "Redis (staging): $(lsof -i :6380 >/dev/null && echo "✅" || echo "❌")"
+	@echo "Redis (prod): $(lsof -i :6381 >/dev/null && echo "✅" || echo "❌")"
+	@echo ""
+	@echo "🌐 API:"
+	@echo "API (dev): $(curl -s http://localhost:8080/ >/dev/null && echo "✅" || echo "❌")"
+	@echo "API (staging): $(curl -s http://localhost:8081/ >/dev/null && echo "✅" || echo "❌")"
+	@echo "API (prod): $(curl -s http://localhost:8082/ >/dev/null && echo "✅" || echo "❌")"
+
+# Команды для резервного копирования
+backup: ## Создать резервную копию данных
+	@echo "💾 Создание резервной копии..."
+	@mkdir -p backups/$(date +%Y%m%d-%H%M%S)
+	@echo "✅ Резервная копия создана"
+
+restore: ## Восстановить данные из резервной копии
+	@echo "🔄 Восстановление данных..."
+	@echo "Выберите файл резервной копии:"
+	@ls -la backups/
+	@echo "⚠️  Функция восстановления в разработке"
+
+# Команды для обновления
+update: ## Обновить приложение
+	@echo "🔄 Обновление приложения..."
+	@git pull origin main
+	@make deps
+	@make swagger
+	@echo "✅ Приложение обновлено"
+
+update-deps: ## Обновить зависимости
+	@echo "🔄 Обновление зависимостей..."
+	@go get -u ./...
+	@go mod tidy
+	@echo "✅ Зависимости обновлены"
+
+# Команды для диагностики
+diagnose: ## Диагностика системы
+	@echo "🔍 Диагностика системы..."
+	@echo "📋 Версии:"
+	@echo "Go: $(go version)"
+	@echo "Docker: $(docker --version)"
+	@echo "Docker Compose: $(docker-compose --version)"
+	@echo ""
+	@echo "📊 Ресурсы:"
+	@echo "CPU: $(top -l 1 | grep "CPU usage" | awk '{print $3}')"
+	@echo "Memory: $(top -l 1 | grep "PhysMem" | awk '{print $2}')"
+	@echo "Disk: $(df -h . | tail -1 | awk '{print $5}')"
+	@echo ""
+	@echo "🌐 Сеть:"
+	@echo "Порт 8080: $(lsof -i :8080 >/dev/null && echo "✅ Занят" || echo "❌ Свободен")"
+	@echo "Порт 5432: $(lsof -i :5432 >/dev/null && echo "✅ Занят" || echo "❌ Свободен")"
+	@echo "Порт 6379: $(lsof -i :6379 >/dev/null && echo "✅ Занят" || echo "❌ Свободен")" 

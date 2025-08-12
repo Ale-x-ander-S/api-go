@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: products_postgres_staging
+    environment:
+      POSTGRES_DB: products_db_staging
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-staging_password}
+    ports:
+      - "5433:5432"  # Другой порт для staging
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - products_network_staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d products_db_staging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis для кэширования
+  redis:
+    image: redis:7-alpine
+    container_name: products_redis_staging
+    ports:
+      - "6380:6379"  # Другой порт для staging
+    volumes:
+      - redis_data_staging:/data
+    networks:
+      - products_network_staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # API приложение
+  api:
+    build: .
+    container_name: products_api_staging
+    ports:
+      - "8081:8080"  # Другой порт для staging
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD:-staging_password}
+      - DB_NAME=products_db_staging
+      - DB_SSL_MODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - REDIS_TTL=3600
+      - JWT_SECRET=${JWT_SECRET:-staging-jwt-secret-key}
+      - SERVER_PORT=8080
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - products_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data_staging:
+  redis_data_staging:
+
+networks:
+  products_network_staging:
+    driver: bridge 
