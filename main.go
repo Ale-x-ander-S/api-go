@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"api-go/cache"
 	"api-go/config"
 	"api-go/database"
 	_ "api-go/docs" // Импорт для Swagger документации
+	"api-go/models"
 	"api-go/routes"
 
 	"github.com/joho/godotenv"
@@ -89,6 +94,15 @@ func main() {
 		log.Fatal("Ошибка инициализации таблиц:", err)
 	}
 
+	// Инициализируем кэш Redis продуктами
+	if redisClient != nil {
+		if err := initializeProductCache(db, redisClient); err != nil {
+			log.Printf("Предупреждение: Не удалось инициализировать кэш продуктов: %v", err)
+		} else {
+			log.Println("Кэш продуктов успешно инициализирован")
+		}
+	}
+
 	// Настраиваем маршруты
 	router := routes.SetupRoutes(cfg, db, redisClient)
 
@@ -158,5 +172,89 @@ func startRedisAutomatically() error {
 	}
 
 	log.Println("Redis успешно запущен в Docker")
+	return nil
+}
+
+// initializeProductCache инициализирует кэш Redis продуктами из базы данных
+func initializeProductCache(db *sql.DB, redisClient *database.RedisClient) error {
+	// Получаем все активные продукты из базы данных
+	rows, err := db.Query(`
+		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
+		FROM products 
+		WHERE is_active = true 
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return fmt.Errorf("ошибка запроса продуктов: %v", err)
+	}
+	defer rows.Close()
+
+	var products []models.ProductResponse
+	for rows.Next() {
+		var product models.Product
+		err := rows.Scan(
+			&product.ID, &product.Name, &product.Description, &product.Price,
+			&product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU,
+			&product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured,
+			&product.SortOrder, &product.CreatedAt, &product.UpdatedAt,
+		)
+		if err != nil {
+			log.Printf("Предупреждение: ошибка сканирования продукта: %v", err)
+			continue
+		}
+
+		response := models.ProductResponse{
+			ID:          product.ID,
+			Name:        product.Name,
+			Description: product.Description,
+			Price:       product.Price,
+			CategoryID:  product.CategoryID,
+			Stock:       product.Stock,
+			ImageURL:    product.ImageURL,
+			SKU:         product.SKU,
+			Weight:      product.Weight,
+			Dimensions:  product.Dimensions,
+			IsActive:    product.IsActive,
+			IsFeatured:  product.IsFeatured,
+			SortOrder:   product.SortOrder,
+			CreatedAt:   product.CreatedAt,
+			UpdatedAt:   product.UpdatedAt,
+		}
+		products = append(products, response)
+	}
+
+	if len(products) == 0 {
+		log.Println("Предупреждение: нет продуктов для кэширования")
+		return nil
+	}
+
+	// Создаем кэш для продуктов
+	productCache := cache.NewProductCache(redisClient)
+
+	// Кэшируем продукты по страницам (по 10 штук)
+	pageSize := 10
+	totalPages := (len(products) + pageSize - 1) / pageSize
+
+	for page := 1; page <= totalPages; page++ {
+		start := (page - 1) * pageSize
+		end := start + pageSize
+		if end > len(products) {
+			end = len(products)
+		}
+
+		pageProducts := products[start:end]
+		err := productCache.SetProducts(context.Background(), page, pageSize, "", pageProducts)
+		if err != nil {
+			log.Printf("Предупреждение: не удалось кэшировать страницу %d: %v", page, err)
+		}
+	}
+
+	// Кэшируем общий список продуктов
+	err = productCache.SetProducts(context.Background(), 1, len(products), "", products)
+	if err != nil {
+		log.Printf("Предупреждение: не удалось кэшировать общий список: %v", err)
+	}
+
+	log.Printf("Кэшировано %d продуктов в %d страницах", len(products), totalPages)
 	return nil
 }

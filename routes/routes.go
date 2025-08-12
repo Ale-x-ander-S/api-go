@@ -54,95 +54,82 @@ func SetupRoutes(cfg *config.Config, db *sql.DB, redisClient *database.RedisClie
 		})
 	})
 
-	// API v1
-	v1 := r.Group("/api/v1")
+	// Публичные маршруты (не требуют аутентификации)
 	{
 		// Аутентификация
-		auth := v1.Group("/auth")
+		auth := r.Group("/api/v1/auth")
 		{
 			authHandler := handlers.NewAuthHandler(db, cfg)
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 		}
 
-		// Защищенные маршруты (требуют аутентификации)
-		protected := v1.Group("")
-		protected.Use(middleware.AuthMiddleware(cfg))
-		{
-			// Продукты (чтение)
-			productHandler := handlers.NewProductHandler(db, cache.NewProductCache(redisClient))
-			protected.GET("/products", productHandler.GetProducts)
-			protected.GET("/products/:id", productHandler.GetProduct)
+		// Продукты (чтение) - публичные
+		productHandler := handlers.NewProductHandler(db, cache.NewProductCache(redisClient))
+		r.GET("/api/v1/products", productHandler.GetProducts)
+		r.GET("/api/v1/products/:id", productHandler.GetProduct)
+	}
 
-			// Корзина
-			cartHandler := handlers.NewCartHandler(db)
-			protected.GET("/cart", cartHandler.GetCart)
-			protected.POST("/cart", cartHandler.AddToCart)
-			protected.PUT("/cart/:id", cartHandler.UpdateCartItem)
-			protected.DELETE("/cart/:id", cartHandler.RemoveFromCart)
-			protected.POST("/cart/clear", cartHandler.ClearCart)
+	// API v1 - защищенные маршруты (требуют аутентификации)
+	v1 := r.Group("/api/v1")
 
-			// Заказы
-			orderHandler := handlers.NewOrderHandler(db)
-			protected.GET("/orders", orderHandler.GetOrders)
-			protected.GET("/orders/:id", orderHandler.GetOrder)
-			protected.POST("/orders", orderHandler.CreateOrder)
-			protected.PUT("/orders/:id", orderHandler.UpdateOrder)
-			protected.POST("/orders/:id/cancel", orderHandler.CancelOrder)
+	// Защищенные маршруты (требуют аутентификации)
+	protected := v1.Group("")
+	protected.Use(middleware.AuthMiddleware(cfg))
+	{
+		// Корзина
+		cartHandler := handlers.NewCartHandler(db)
+		protected.GET("/cart", cartHandler.GetCart)
+		protected.POST("/cart", cartHandler.AddToCart)
+		protected.PUT("/cart/:id", cartHandler.UpdateCartItem)
+		protected.DELETE("/cart/:id", cartHandler.RemoveFromCart)
+		protected.POST("/cart/clear", cartHandler.ClearCart)
 
-			// Кэш
-			cacheHandler := handlers.NewCacheHandler(cache.NewProductCache(redisClient))
-			protected.GET("/cache/stats", cacheHandler.GetCacheStats)
-			protected.POST("/cache/invalidate", cacheHandler.InvalidateCache)
-		}
+		// Заказы
+		orderHandler := handlers.NewOrderHandler(db)
+		protected.GET("/orders", orderHandler.GetOrders)
+		protected.GET("/orders/:id", orderHandler.GetOrder)
+		protected.POST("/orders", orderHandler.CreateOrder)
+		protected.PUT("/orders/:id", orderHandler.UpdateOrder)
+		protected.POST("/orders/:id/cancel", orderHandler.CancelOrder)
 
-		// Админские маршруты (требуют роль admin)
-		admin := v1.Group("")
-		admin.Use(middleware.AuthMiddleware(cfg))
-		admin.Use(middleware.AdminMiddleware())
-		{
-			// Продукты (создание, обновление, удаление)
-			productHandler := handlers.NewProductHandler(db, cache.NewProductCache(redisClient))
-			admin.POST("/products", productHandler.CreateProduct)
-			admin.PUT("/products/:id", productHandler.UpdateProduct)
-			admin.DELETE("/products/:id", productHandler.DeleteProduct)
+		// Кэш
+		cacheHandler := handlers.NewCacheHandler(cache.NewProductCache(redisClient))
+		protected.GET("/cache/stats", cacheHandler.GetCacheStats)
+		protected.POST("/cache/invalidate", cacheHandler.InvalidateCache)
+	}
 
-			// Категории
-			// TODO: Добавить CategoryHandler
-			// categoryHandler := handlers.NewCategoryHandler(db)
-			// admin.GET("/categories", categoryHandler.GetCategories)
-			// admin.GET("/categories/:id", categoryHandler.GetCategory)
-			// admin.POST("/categories", categoryHandler.CreateCategory)
-			// admin.PUT("/categories/:id", categoryHandler.UpdateCategory)
-			// admin.DELETE("/categories/:id", categoryHandler.DeleteCategory)
+	// Админские маршруты (требуют роль admin)
+	admin := v1.Group("")
+	admin.Use(middleware.AuthMiddleware(cfg))
+	admin.Use(middleware.AdminMiddleware())
+	{
+		// Продукты (создание, обновление, удаление)
+		productHandler := handlers.NewProductHandler(db, cache.NewProductCache(redisClient))
+		admin.POST("/products", productHandler.CreateProduct)
+		admin.PUT("/products/:id", productHandler.UpdateProduct)
+		admin.DELETE("/products/:id", productHandler.DeleteProduct)
 
-			// Отзывы (модерация)
-			// TODO: Добавить ReviewHandler
-			// reviewHandler := handlers.NewReviewHandler(db)
-			// admin.GET("/reviews", reviewHandler.GetReviews)
-			// admin.PUT("/reviews/:id", reviewHandler.UpdateReview)
-			// admin.DELETE("/reviews/:id", reviewHandler.DeleteReview)
+		// Категории
+		// TODO: Добавить CategoryHandler
+		// categoryHandler := handlers.NewCategoryHandler(db)
+		// admin.GET("/categories", categoryHandler.GetCategories)
+		// admin.GET("/categories/:id", categoryHandler.GetCategory)
+		// admin.POST("/categories", categoryHandler.CreateCategory)
+		// admin.PUT("/categories/:id", categoryHandler.UpdateCategory)
+		// admin.DELETE("/categories/:id", categoryHandler.DeleteCategory)
 
-			// Заказы (управление)
-			orderHandler := handlers.NewOrderHandler(db)
-			admin.GET("/admin/orders", orderHandler.GetOrders)       // Все заказы для админа
-			admin.PUT("/admin/orders/:id", orderHandler.UpdateOrder) // Обновление статуса заказа
-		}
+		// Отзывы (модерация)
+		// TODO: Добавить ReviewHandler
+		// reviewHandler := handlers.NewReviewHandler(db)
+		// admin.GET("/reviews", reviewHandler.GetReviews)
+		// admin.PUT("/reviews/:id", reviewHandler.UpdateReview)
+		// admin.DELETE("/reviews/:id", reviewHandler.DeleteReview)
 
-		// Публичные маршруты
-		{
-			// Категории (чтение)
-			// TODO: Добавить CategoryHandler
-			// categoryHandler := handlers.NewCategoryHandler(db)
-			// v1.GET("/categories", categoryHandler.GetCategories)
-			// v1.GET("/categories/:id", categoryHandler.GetCategory)
-
-			// Отзывы (чтение)
-			// TODO: Добавить ReviewHandler
-			// reviewHandler := handlers.NewReviewHandler(db)
-			// v1.GET("/products/:id/reviews", reviewHandler.GetProductReviews)
-			// v1.POST("/products/:id/reviews", reviewHandler.CreateReview) // Требует аутентификации
-		}
+		// Заказы (управление)
+		orderHandler := handlers.NewOrderHandler(db)
+		admin.GET("/admin/orders", orderHandler.GetOrders)       // Все заказы для админа
+		admin.PUT("/admin/orders/:id", orderHandler.UpdateOrder) // Обновление статуса заказа
 	}
 
 	return r

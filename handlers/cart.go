@@ -43,7 +43,7 @@ func (h *CartHandler) GetCart(c *gin.Context) {
 	// Получаем товары в корзине
 	rows, err := h.db.Query(`
 		SELECT ci.id, ci.user_id, ci.product_id, ci.quantity, ci.price, ci.created_at, ci.updated_at,
-		       p.name, p.description, p.image_url, p.category_id, p.stock, p.sku, p.is_active, p.created_at, p.updated_at
+		       p.id, p.name, p.description, p.image_url, COALESCE(p.category_id, 0), p.stock, COALESCE(p.sku, ''), p.is_active, p.created_at, p.updated_at
 		FROM cart_items ci
 		JOIN products p ON ci.product_id = p.id
 		WHERE ci.user_id = $1 AND p.is_active = true
@@ -64,7 +64,7 @@ func (h *CartHandler) GetCart(c *gin.Context) {
 		var product models.Product
 		err := rows.Scan(
 			&item.ID, &item.UserID, &item.ProductID, &item.Quantity, &item.Price, &item.CreatedAt, &item.UpdatedAt,
-			&product.Name, &product.Description, &product.ImageURL, &product.CategoryID, &product.Stock, &product.SKU, &product.IsActive, &product.CreatedAt, &product.UpdatedAt,
+			&product.ID, &product.Name, &product.Description, &product.ImageURL, &product.CategoryID, &product.Stock, &product.SKU, &product.IsActive, &product.CreatedAt, &product.UpdatedAt,
 		)
 		if err != nil {
 			continue
@@ -375,13 +375,13 @@ func (h *CartHandler) getCartItemByID(cartItemID int) (*models.CartItemResponse,
 	var product models.Product
 	err := h.db.QueryRow(`
 		SELECT ci.id, ci.user_id, ci.product_id, ci.quantity, ci.price, ci.created_at, ci.updated_at,
-		       p.name, p.description, p.image_url, p.category_id, p.stock, p.sku, p.is_active, p.created_at, p.updated_at
+		       p.id, p.name, p.description, p.image_url, COALESCE(p.category_id, 0), p.stock, COALESCE(p.sku, ''), p.is_active, p.created_at, p.updated_at
 		FROM cart_items ci
 		JOIN products p ON ci.product_id = p.id
 		WHERE ci.id = $1
 	`, cartItemID).Scan(
 		&item.ID, &item.UserID, &item.ProductID, &item.Quantity, &item.Price, &item.CreatedAt, &item.UpdatedAt,
-		&product.Name, &product.Description, &product.ImageURL, &product.CategoryID, &product.Stock, &product.SKU, &product.IsActive, &product.CreatedAt, &product.UpdatedAt,
+		&product.ID, &product.Name, &product.Description, &product.ImageURL, &product.CategoryID, &product.Stock, &product.SKU, &product.IsActive, &product.CreatedAt, &product.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

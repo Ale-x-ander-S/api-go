@@ -45,16 +45,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Проверяем, существует ли пользователь с таким username
-	var existingUser models.User
-	err := h.db.QueryRow("SELECT id FROM users WHERE username = $1", req.Username).Scan(&existingUser.ID)
-	if err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Пользователь с таким именем уже существует"})
-		return
-	}
-
 	// Проверяем, существует ли пользователь с таким email
-	err = h.db.QueryRow("SELECT id FROM users WHERE email = $1", req.Email).Scan(&existingUser.ID)
+	var existingUser models.User
+	err := h.db.QueryRow("SELECT id FROM users WHERE email = $1", req.Email).Scan(&existingUser.ID)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Пользователь с таким email уже существует"})
 		return
@@ -118,18 +111,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var user models.User
 	err := h.db.QueryRow(`
 		SELECT id, username, email, password, role, created_at, updated_at 
-		FROM users WHERE username = $1`,
-		req.Username,
+		FROM users WHERE email = $1`,
+		req.Email,
 	).Scan(&user.ID, &user.Username, &user.Email, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверное имя пользователя или пароль"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный email или пароль"})
 		return
 	}
 
 	// Проверяем пароль
 	if !utils.CheckPasswordHash(req.Password, user.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверное имя пользователя или пароль"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный email или пароль"})
 		return
 	}
 

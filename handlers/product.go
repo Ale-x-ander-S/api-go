@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -41,7 +42,7 @@ func NewProductHandler(db *sql.DB, productCache *cache.ProductCache) *ProductHan
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /api/v1/products [post]
+// @Router /products [post]
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var req models.ProductCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,7 +104,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 // @Param order query string false "Порядок сортировки (asc, desc)" default(desc)
 // @Success 200 {object} models.ProductListResponse
 // @Failure 500 {object} map[string]string
-// @Router /api/v1/products [get]
+// @Router /products [get]
 func (h *ProductHandler) GetProducts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
@@ -114,10 +115,14 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	sort := c.DefaultQuery("sort", "created_at")
 	order := c.DefaultQuery("order", "desc")
 
+	log.Printf("DEBUG: Sort: %s, Order: %s", sort, order)
+
 	// Проверяем кэш
 	if h.cache != nil {
+		log.Printf("DEBUG: Checking cache for page=%d, limit=%d, category=%s", page, limit, category)
 		cachedProducts, err := h.cache.GetProducts(c.Request.Context(), page, limit, category)
 		if err == nil {
+			log.Printf("DEBUG: Cache HIT, returning %d products", len(cachedProducts))
 			c.Header("X-Cache", "HIT")
 			c.JSON(http.StatusOK, models.ProductListResponse{
 				Products: cachedProducts,
@@ -127,6 +132,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 			})
 			return
 		}
+		log.Printf("DEBUG: Cache MISS, error: %v", err)
 	}
 
 	c.Header("X-Cache", "MISS")
@@ -165,19 +171,28 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	// Получаем общее количество продуктов
 	var total int
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products %s", whereClause)
+	log.Printf("DEBUG: Count Query: %s", countQuery)
+	log.Printf("DEBUG: Count Args: %v", args)
+
 	err := h.db.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
+		log.Printf("DEBUG: Error counting products: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка подсчета продуктов"})
 		return
 	}
+	log.Printf("DEBUG: Total products found: %d", total)
 
 	// Получаем продукты
 	query := fmt.Sprintf(`
-		SELECT id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
 		FROM products %s
 		ORDER BY %s %s
 		LIMIT $%d OFFSET $%d
 	`, whereClause, sort, order, argIndex, argIndex+1)
+
+	// Логируем SQL запрос для отладки
+	log.Printf("DEBUG: SQL Query: %s", query)
+	log.Printf("DEBUG: Args: %v", args)
 
 	args = append(args, limit, offset)
 	rows, err := h.db.Query(query, args...)
@@ -188,12 +203,15 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	defer rows.Close()
 
 	var products []models.ProductResponse
+	log.Printf("DEBUG: Starting to scan rows...")
 	for rows.Next() {
 		var product models.Product
 		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 		if err != nil {
+			log.Printf("DEBUG: Error scanning row: %v", err)
 			continue
 		}
+		log.Printf("DEBUG: Scanned product: ID=%d, Name=%s", product.ID, product.Name)
 
 		response := models.ProductResponse{
 			ID:          product.ID,
@@ -241,7 +259,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /api/v1/products/{id} [get]
+// @Router /products/{id} [get]
 func (h *ProductHandler) GetProduct(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -263,7 +281,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 
 	var product models.Product
 	err = h.db.QueryRow(`
-		SELECT id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
 		FROM products WHERE id = $1 AND is_active = true
 	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
@@ -334,7 +352,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 // @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /api/v1/products/{id} [put]
+// @Router /products/{id} [put]
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

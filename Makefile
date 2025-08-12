@@ -330,6 +330,19 @@ ecommerce-setup: ## Настройка базы данных для интерн
 	@docker exec -i products_postgres psql -U postgres -d products_db < init.sql
 	@echo "✅ База данных настроена"
 
+migrate: ## Применить миграции базы данных
+	@echo "🔄 Применение миграций..."
+	@docker exec -i products_postgres psql -U postgres -d products_db < migrations/001_initial_schema.sql
+	@echo "✅ Миграции применены"
+
+migrate-fresh: ## Создать новую базу данных и применить миграции
+	@echo "🆕 Создание новой базы данных..."
+	@docker exec -i products_postgres psql -U postgres -c "DROP DATABASE IF EXISTS products_db;"
+	@docker exec -i products_postgres psql -U postgres -c "CREATE DATABASE products_db;"
+	@echo "🔄 Применение миграций..."
+	@docker exec -i products_postgres psql -U postgres -d products_db < migrations/001_initial_schema.sql
+	@echo "✅ База данных создана и миграции применены"
+
 ecommerce-test: ## Тестирование функций интернет-магазина
 	@echo "🧪 Тестирование функций интернет-магазина..."
 	@echo "1. Создание пользователя..."
