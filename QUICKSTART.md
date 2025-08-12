@@ -89,7 +89,7 @@ JWT_SECRET=your-secret-key
 
 - **API**: http://localhost:8080/api/v1
 - **Swagger**: http://localhost:8080/swagger/index.html
-- **pgAdmin**: http://localhost:5050 (admin@admin.com / admin)
+
 
 ## 🆘 Решение проблем
 
