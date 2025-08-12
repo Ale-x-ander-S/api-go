@@ -41,7 +41,7 @@ services:
 
   # API приложение
   api:
-    build: .
+    image: api-go:latest
     container_name: products_api
     ports:
       - "8080:8080"
