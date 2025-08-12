@@ -22,6 +22,21 @@ import (
 // @description REST API для управления продуктами с Redis кэшированием
 // @host localhost:8080
 // @BasePath /api/v1
+// @schemes http https
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Введите JWT токен в формате: Bearer <your-token>
+
+// @tag.name auth
+// @tag.description Операции аутентификации
+
+// @tag.name products
+// @tag.description Операции с продуктами
+
+// @tag.name cache
+// @tag.description Операции с кэшем
 func main() {
 	// Автоматически генерируем Swagger документацию при запуске
 	if err := generateSwaggerDocs(); err != nil {

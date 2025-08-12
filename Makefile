@@ -173,4 +173,18 @@ swagger-watch: ## Отслеживать изменения и автомати�
 		fswatch -o . | xargs -n1 -I {} make swagger; \
 	else \
 		echo "fswatch не установлен. Установите: brew install fswatch (macOS) или apt-get install fswatch (Ubuntu)"; \
-	fi 
+	fi
+
+# JWT токены для тестирования
+get-token: ## Получить JWT токен для тестирования API
+	@echo "🔑 Получение JWT токена..."
+	@./scripts/get-token.sh
+
+# Быстрое получение токена админа
+get-admin-token: ## Быстро получить токен администратора
+	@echo "🔑 Получение токена администратора..."
+	@curl -s -X POST http://localhost:8080/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"username":"admin","password":"password"}' | \
+		jq -r '.token' | \
+		sed 's/^/Bearer /' 
