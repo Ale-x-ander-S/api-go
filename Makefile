@@ -90,10 +90,47 @@ db-drop: ## Удалить базу данных (требует psql)
 	@echo "Удаление базы данных products_db..."
 	@psql -U postgres -c "DROP DATABASE IF EXISTS products_db;"
 
+# Redis команды
+redis-start: ## Запустить Redis локально
+	@echo "Запуск Redis..."
+	@if ! docker ps | grep -q redis; then \
+		docker run -d --name redis-cache -p 6379:6379 redis:7-alpine; \
+		echo "Redis запущен на порту 6379"; \
+	else \
+		echo "Redis уже запущен"; \
+	fi
+
+redis-stop: ## Остановить Redis
+	@echo "Остановка Redis..."
+	@docker stop redis-cache 2>/dev/null || echo "Redis не был запущен"
+	@docker rm redis-cache 2>/dev/null || echo "Контейнер Redis не найден"
+
+redis-cli: ## Подключиться к Redis CLI
+	@echo "Подключение к Redis CLI..."
+	@docker exec -it redis-cache redis-cli
+
+redis-flush: ## Очистить Redis
+	@echo "Очистка Redis..."
+	@docker exec redis-cache redis-cli FLUSHALL
+
+# Docker Compose
+docker-up: ## Запустить все сервисы через Docker Compose
+	docker-compose up -d
+
+docker-down: ## Остановить все сервисы
+	docker-compose down
+
+docker-logs: ## Показать логи всех сервисов
+	docker-compose logs -f
+
 # Мониторинг
 logs: ## Показать логи (если запущено в Docker)
 	docker logs -f $(BINARY_NAME) || echo "Контейнер не запущен"
 
 status: ## Показать статус приложения
 	@echo "Проверка статуса приложения..."
-	@curl -s http://localhost:8080/ | jq . || echo "Приложение не отвечает" 
+	@curl -s http://localhost:8080/ | jq . || echo "Приложение не отвечает"
+
+cache-stats: ## Показать статистику кэша (требует аутентификации)
+	@echo "Получение статистики кэша..."
+	@echo "Используйте: curl -H 'Authorization: Bearer YOUR_TOKEN' http://localhost:8080/api/v1/cache/stats" 

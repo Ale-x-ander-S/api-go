@@ -16,7 +16,7 @@ import (
 
 // @title Products API
 // @version 1.0
-// @description REST API для управления продуктами
+// @description REST API для управления продуктами с Redis кэшированием
 // @host localhost:8080
 // @BasePath /api/v1
 func main() {
@@ -28,12 +28,22 @@ func main() {
 	// Инициализируем конфигурацию
 	cfg := config.Load()
 
-	// Подключаемся к базе данных
+	// Подключаемся к базе данных PostgreSQL
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
 		log.Fatal("Ошибка подключения к базе данных:", err)
 	}
 	defer db.Close()
+
+	// Подключаемся к Redis
+	redisClient := database.NewRedisClient(cfg.Redis)
+	if err := redisClient.Connect(); err != nil {
+		log.Printf("Предупреждение: Redis недоступен, кэширование отключено: %v", err)
+		// Продолжаем работу без Redis
+	} else {
+		defer redisClient.Close()
+		log.Println("Redis подключен, кэширование активно")
+	}
 
 	// Инициализируем таблицы
 	if err := database.InitTables(db); err != nil {
@@ -48,7 +58,7 @@ func main() {
 	router.Use(middleware.Logger())
 
 	// Инициализируем маршруты
-	routes.SetupRoutes(router, db, cfg)
+	routes.SetupRoutes(router, db, cfg, redisClient)
 
 	// Запускаем сервер
 	port := os.Getenv("SERVER_PORT")

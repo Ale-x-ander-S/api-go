@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
 	"time"
 
+	"api-go/cache"
 	"api-go/models"
 
 	"github.com/gin-gonic/gin"
@@ -13,12 +15,16 @@ import (
 
 // ProductHandler обрабатывает запросы для работы с продуктами
 type ProductHandler struct {
-	db *sql.DB
+	db    *sql.DB
+	cache *cache.ProductCache
 }
 
 // NewProductHandler создает новый экземпляр ProductHandler
-func NewProductHandler(db *sql.DB) *ProductHandler {
-	return &ProductHandler{db: db}
+func NewProductHandler(db *sql.DB, productCache *cache.ProductCache) *ProductHandler {
+	return &ProductHandler{
+		db:    db,
+		cache: productCache,
+	}
 }
 
 // CreateProduct создает новый продукт
@@ -69,6 +75,13 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		UpdatedAt:   product.UpdatedAt,
 	}
 
+	// Инвалидируем кэш после создания продукта
+	ctx := context.Background()
+	if err := h.cache.InvalidateProductCache(ctx, product.ID); err != nil {
+		// Логируем ошибку, но не прерываем выполнение
+		c.Header("X-Cache-Invalidation", "failed")
+	}
+
 	c.JSON(http.StatusCreated, response)
 }
 
@@ -88,6 +101,17 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	category := c.Query("category")
 
+	// Пытаемся получить из кэша
+	ctx := context.Background()
+	cachedProducts, err := h.cache.GetProducts(ctx, page, limit, category)
+	if err == nil {
+		// Добавляем заголовок, что данные из кэша
+		c.Header("X-Cache", "HIT")
+		c.JSON(http.StatusOK, cachedProducts)
+		return
+	}
+
+	// Если в кэше нет, получаем из БД
 	// Вычисляем offset
 	offset := (page - 1) * limit
 
@@ -136,6 +160,14 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		products = append(products, response)
 	}
 
+	// Сохраняем в кэш
+	if err := h.cache.SetProducts(ctx, page, limit, category, products); err != nil {
+		// Логируем ошибку, но не прерываем выполнение
+		c.Header("X-Cache-Save", "failed")
+	}
+
+	// Добавляем заголовок, что данные из БД
+	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, products)
 }
 
@@ -156,7 +188,17 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		return
 	}
 
-	// Ищем продукт в базе
+	// Пытаемся получить из кэша
+	ctx := context.Background()
+	cachedProduct, err := h.cache.GetProduct(ctx, id)
+	if err == nil {
+		// Добавляем заголовок, что данные из кэша
+		c.Header("X-Cache", "HIT")
+		c.JSON(http.StatusOK, cachedProduct)
+		return
+	}
+
+	// Если в кэше нет, получаем из БД
 	var product models.Product
 	err = h.db.QueryRow(`
 		SELECT id, name, description, price, category, stock, image_url, created_at, updated_at 
@@ -186,6 +228,14 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		UpdatedAt:   product.UpdatedAt,
 	}
 
+	// Сохраняем в кэш
+	if err := h.cache.SetProduct(ctx, response); err != nil {
+		// Логируем ошибку, но не прерываем выполнение
+		c.Header("X-Cache-Save", "failed")
+	}
+
+	// Добавляем заголовок, что данные из БД
+	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -303,6 +353,13 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		UpdatedAt:   product.UpdatedAt,
 	}
 
+	// Инвалидируем кэш после обновления продукта
+	ctx := context.Background()
+	if err := h.cache.InvalidateProductCache(ctx, product.ID); err != nil {
+		// Логируем ошибку, но не прерываем выполнение
+		c.Header("X-Cache-Invalidation", "failed")
+	}
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -343,6 +400,13 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка удаления продукта"})
 		return
+	}
+
+	// Инвалидируем кэш после удаления продукта
+	ctx := context.Background()
+	if err := h.cache.InvalidateProductCache(ctx, id); err != nil {
+		// Логируем ошибку, но не прерываем выполнение
+		c.Header("X-Cache-Invalidation", "failed")
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Продукт успешно удален"})
