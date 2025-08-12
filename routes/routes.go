@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"api-go/config"
+	_ "api-go/docs" // Импорт для Swagger документации
 	"api-go/handlers"
 	"api-go/middleware"
 

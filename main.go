@@ -6,6 +6,7 @@ import (
 
 	"api-go/config"
 	"api-go/database"
+	_ "api-go/docs" // Импорт для Swagger документации
 	"api-go/middleware"
 	"api-go/routes"
 
@@ -15,13 +16,9 @@ import (
 
 // @title Products API
 // @version 1.0
-// @description REST API для управления продуктами с JWT аутентификацией
+// @description REST API для управления продуктами
 // @host localhost:8080
 // @BasePath /api/v1
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
-// @description Введите "Bearer" + пробел + JWT токен
 func main() {
 	// Загружаем переменные окружения
 	if err := godotenv.Load("config.env"); err != nil {
