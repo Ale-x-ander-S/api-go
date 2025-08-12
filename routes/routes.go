@@ -46,17 +46,22 @@ func SetupRoutes(router *gin.Engine, db *sql.DB, cfg *config.Config, redisClient
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))
 		{
-			// Маршруты для управления продуктами (требуют аутентификации)
-			protected.POST("/products", productHandler.CreateProduct)
-			protected.PUT("/products/:id", productHandler.UpdateProduct)
-			protected.DELETE("/products/:id", productHandler.DeleteProduct)
-
-			// Маршруты для управления кэшем
+			// Маршруты для управления кэшем (требуют аутентификации)
 			cache := protected.Group("/cache")
 			{
 				cache.GET("/stats", cacheHandler.GetCacheStats)
 				cache.POST("/invalidate", cacheHandler.InvalidateCache)
 			}
+		}
+
+		// Административные маршруты (требуют роль admin)
+		admin := v1.Group("")
+		admin.Use(middleware.AuthMiddleware(cfg), middleware.AdminMiddleware())
+		{
+			// Маршруты для управления продуктами (требуют роль admin)
+			admin.POST("/products", productHandler.CreateProduct)
+			admin.PUT("/products/:id", productHandler.UpdateProduct)
+			admin.DELETE("/products/:id", productHandler.DeleteProduct)
 		}
 	}
 
@@ -70,7 +75,7 @@ func SetupRoutes(router *gin.Engine, db *sql.DB, cfg *config.Config, redisClient
 			"docs":    "/swagger/index.html",
 			"features": gin.H{
 				"caching": "Redis кэш для продуктов",
-				"auth":    "JWT аутентификация",
+				"auth":    "JWT аутентификация с ролями",
 				"swagger": "Автоматическая документация",
 			},
 			"endpoints": gin.H{
@@ -81,14 +86,17 @@ func SetupRoutes(router *gin.Engine, db *sql.DB, cfg *config.Config, redisClient
 				"products": gin.H{
 					"GET    /api/v1/products":     "Получить список продуктов (с кэшированием)",
 					"GET    /api/v1/products/:id": "Получить продукт по ID (с кэшированием)",
-					"POST   /api/v1/products":     "Создать продукт (требует аутентификации, инвалидирует кэш)",
-					"PUT    /api/v1/products/:id": "Обновить продукт (требует аутентификации, инвалидирует кэш)",
-					"DELETE /api/v1/products/:id": "Удалить продукт (требует аутентификации, инвалидирует кэш)",
+					"POST   /api/v1/products":     "Создать продукт (требует роль admin, инвалидирует кэш)",
+					"PUT    /api/v1/products/:id": "Обновить продукт (требует роль admin, инвалидирует кэш)",
+					"DELETE /api/v1/products/:id": "Удалить продукт (требует роль admin, инвалидирует кэш)",
 				},
 				"cache": gin.H{
 					"GET  /api/v1/cache/stats":      "Статистика кэша (требует аутентификации)",
 					"POST /api/v1/cache/invalidate": "Инвалидация всего кэша (требует аутентификации)",
 				},
+			},
+			"security": gin.H{
+				"note": "Управление продуктами доступно только пользователям с ролью 'admin'",
 			},
 		})
 	})

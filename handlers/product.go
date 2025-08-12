@@ -29,7 +29,7 @@ func NewProductHandler(db *sql.DB, productCache *cache.ProductCache) *ProductHan
 
 // CreateProduct создает новый продукт
 // @Summary Создание продукта
-// @Description Создает новый продукт в системе (требует аутентификации)
+// @Description Создает новый продукт в системе (требует роль admin)
 // @Tags products
 // @Accept json
 // @Produce json
@@ -38,6 +38,7 @@ func NewProductHandler(db *sql.DB, productCache *cache.ProductCache) *ProductHan
 // @Success 201 {object} models.ProductResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
 // @Router /products [post]
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var req models.ProductCreateRequest
@@ -241,7 +242,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 
 // UpdateProduct обновляет существующий продукт
 // @Summary Обновление продукта
-// @Description Обновляет информацию о продукте (требует аутентификации)
+// @Description Обновляет информацию о продукте (требует роль admin)
 // @Tags products
 // @Accept json
 // @Produce json
@@ -251,6 +252,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 // @Success 200 {object} models.ProductResponse
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Router /products/{id} [put]
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
@@ -365,7 +367,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 
 // DeleteProduct удаляет продукт
 // @Summary Удаление продукта
-// @Description Удаляет продукт из системы (требует аутентификации)
+// @Description Удаляет продукт из системы (требует роль admin)
 // @Tags products
 // @Produce json
 // @Security BearerAuth
@@ -373,6 +375,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Router /products/{id} [delete]
 func (h *ProductHandler) DeleteProduct(c *gin.Context) {

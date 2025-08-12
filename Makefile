@@ -18,6 +18,21 @@ deps: ## Установить зависимости Go
 swagger: ## Генерировать Swagger документацию
 	swag init -g $(MAIN_FILE)
 
+# Автоматическая генерация Swagger (с проверкой)
+swagger-auto: ## Автоматически генерировать Swagger с проверкой
+	@echo "🔄 Проверка и обновление Swagger документации..."
+	@if command -v swag &> /dev/null; then \
+		swag init -g $(MAIN_FILE) && echo "✅ Swagger обновлен"; \
+	else \
+		echo "⚠️  swag не найден, пытаемся найти в GOPATH..."; \
+		GOPATH=$${GOPATH:-$$HOME/go}; \
+		if [ -f "$$GOPATH/bin/swag" ]; then \
+			$$GOPATH/bin/swag init -g $(MAIN_FILE) && echo "✅ Swagger обновлен"; \
+		else \
+			echo "❌ swag не найден. Установите: make tools"; \
+		fi; \
+	fi
+
 # Сборка приложения
 build: ## Собрать приложение
 	go build -o $(BINARY_NAME) $(MAIN_FILE)
@@ -25,6 +40,9 @@ build: ## Собрать приложение
 # Запуск приложения
 run: ## Запустить приложение
 	go run $(MAIN_FILE)
+
+# Запуск с автоматической генерацией Swagger
+run-auto: swagger-auto run ## Запустить с автоматическим обновлением Swagger
 
 # Запуск с пересборкой (для разработки)
 dev: ## Запустить в режиме разработки с автоперезагрузкой
@@ -73,6 +91,9 @@ check: ## Проверить готовность к запуску
 
 # Запуск с проверками
 start: check run ## Запустить с проверками
+
+# Запуск с автоматическим Swagger
+start-auto: check swagger-auto run ## Запустить с проверками и автоматическим Swagger
 
 # Docker команды
 docker-build: ## Собрать Docker образ
@@ -133,4 +154,23 @@ status: ## Показать статус приложения
 
 cache-stats: ## Показать статистику кэша (требует аутентификации)
 	@echo "Получение статистики кэша..."
-	@echo "Используйте: curl -H 'Authorization: Bearer YOUR_TOKEN' http://localhost:8080/api/v1/cache/stats" 
+	@echo "Используйте: curl -H 'Authorization: Bearer YOUR_TOKEN' http://localhost:8080/api/v1/cache/stats"
+
+# Swagger команды
+swagger-serve: swagger ## Генерировать и открыть Swagger UI
+	@echo "🌐 Открытие Swagger UI..."
+	@if command -v open &> /dev/null; then \
+		open http://localhost:8080/swagger/index.html; \
+	elif command -v xdg-open &> /dev/null; then \
+		xdg-open http://localhost:8080/swagger/index.html; \
+	else \
+		echo "Откройте в браузере: http://localhost:8080/swagger/index.html"; \
+	fi
+
+swagger-watch: ## Отслеживать изменения и автоматически обновлять Swagger
+	@echo "👀 Отслеживание изменений в коде..."
+	@if command -v fswatch &> /dev/null; then \
+		fswatch -o . | xargs -n1 -I {} make swagger; \
+	else \
+		echo "fswatch не установлен. Установите: brew install fswatch (macOS) или apt-get install fswatch (Ubuntu)"; \
+	fi 
