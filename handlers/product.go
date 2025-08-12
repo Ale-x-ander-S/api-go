@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,7 +30,7 @@ func NewProductHandler(db *sql.DB, productCache *cache.ProductCache) *ProductHan
 
 // CreateProduct создает новый продукт
 // @Summary Создание продукта
-// @Description Создает новый продукт в системе (требует роль admin)
+// @Description Создает новый продукт (требует роль admin)
 // @Tags products
 // @Accept json
 // @Produce json
@@ -39,98 +40,146 @@ func NewProductHandler(db *sql.DB, productCache *cache.ProductCache) *ProductHan
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
-// @Router /products [post]
+// @Failure 500 {object} map[string]string
+// @Router /api/v1/products [post]
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var req models.ProductCreateRequest
-
-	// Валидируем входящие данные
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверные данные: " + err.Error()})
 		return
 	}
 
-	// Создаем продукт
 	var product models.Product
 	err := h.db.QueryRow(`
-		INSERT INTO products (name, description, price, category, stock, image_url) 
-		VALUES ($1, $2, $3, $4, $5, $6) 
-		RETURNING id, name, description, price, category, stock, image_url, created_at, updated_at`,
-		req.Name, req.Description, req.Price, req.Category, req.Stock, req.ImageURL,
-	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Category, &product.Stock, &product.ImageURL, &product.CreatedAt, &product.UpdatedAt)
+		INSERT INTO products (name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+	`, req.Name, req.Description, req.Price, req.CategoryID, req.Stock, req.ImageURL, req.SKU, req.Weight, req.Dimensions, req.IsActive, req.IsFeatured, req.SortOrder,
+	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания продукта"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания продукта: " + err.Error()})
 		return
 	}
 
-	// Формируем ответ
+	// Инвалидируем кэш продуктов
+	if h.cache != nil {
+		h.cache.InvalidateAllProductCache(c.Request.Context())
+	}
+
 	response := models.ProductResponse{
 		ID:          product.ID,
 		Name:        product.Name,
 		Description: product.Description,
 		Price:       product.Price,
-		Category:    product.Category,
+		CategoryID:  product.CategoryID,
 		Stock:       product.Stock,
 		ImageURL:    product.ImageURL,
+		SKU:         product.SKU,
+		Weight:      product.Weight,
+		Dimensions:  product.Dimensions,
+		IsActive:    product.IsActive,
+		IsFeatured:  product.IsFeatured,
+		SortOrder:   product.SortOrder,
 		CreatedAt:   product.CreatedAt,
 		UpdatedAt:   product.UpdatedAt,
-	}
-
-	// Инвалидируем кэш после создания продукта
-	ctx := context.Background()
-	if err := h.cache.InvalidateProductCache(ctx, product.ID); err != nil {
-		// Логируем ошибку, но не прерываем выполнение
-		c.Header("X-Cache-Invalidation", "failed")
 	}
 
 	c.JSON(http.StatusCreated, response)
 }
 
-// GetProducts возвращает список всех продуктов
-// @Summary Получение списка продуктов
-// @Description Возвращает список всех продуктов с пагинацией
+// GetProducts получает список продуктов с пагинацией и фильтрацией
+// @Summary Список продуктов
+// @Description Возвращает список продуктов с пагинацией и фильтрацией
 // @Tags products
 // @Produce json
-// @Param page query int false "Номер страницы (по умолчанию 1)"
-// @Param limit query int false "Количество продуктов на странице (по умолчанию 10)"
+// @Param page query int false "Номер страницы" default(1)
+// @Param limit query int false "Количество элементов на странице" default(10)
 // @Param category query string false "Фильтр по категории"
-// @Success 200 {array} models.ProductResponse
-// @Router /products [get]
+// @Param search query string false "Поиск по названию"
+// @Param min_price query number false "Минимальная цена"
+// @Param max_price query number false "Максимальная цена"
+// @Param sort query string false "Сортировка (name, price, created_at)" default(created_at)
+// @Param order query string false "Порядок сортировки (asc, desc)" default(desc)
+// @Success 200 {object} models.ProductListResponse
+// @Failure 500 {object} map[string]string
+// @Router /api/v1/products [get]
 func (h *ProductHandler) GetProducts(c *gin.Context) {
-	// Получаем параметры пагинации
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	category := c.Query("category")
+	search := c.Query("search")
+	minPrice := c.Query("min_price")
+	maxPrice := c.Query("max_price")
+	sort := c.DefaultQuery("sort", "created_at")
+	order := c.DefaultQuery("order", "desc")
 
-	// Пытаемся получить из кэша
-	ctx := context.Background()
-	cachedProducts, err := h.cache.GetProducts(ctx, page, limit, category)
-	if err == nil {
-		// Добавляем заголовок, что данные из кэша
-		c.Header("X-Cache", "HIT")
-		c.JSON(http.StatusOK, cachedProducts)
-		return
+	// Проверяем кэш
+	if h.cache != nil {
+		cachedProducts, err := h.cache.GetProducts(c.Request.Context(), page, limit, category)
+		if err == nil {
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, models.ProductListResponse{
+				Products: cachedProducts,
+				Total:    len(cachedProducts),
+				Page:     page,
+				Limit:    limit,
+			})
+			return
+		}
 	}
 
-	// Если в кэше нет, получаем из БД
-	// Вычисляем offset
+	c.Header("X-Cache", "MISS")
+
 	offset := (page - 1) * limit
 
 	// Формируем SQL запрос
-	var query string
-	var args []interface{}
+	whereClause := "WHERE is_active = true"
+	args := []interface{}{}
+	argIndex := 1
 
 	if category != "" {
-		query = `SELECT id, name, description, price, category, stock, image_url, created_at, updated_at 
-				 FROM products WHERE category = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
-		args = []interface{}{category, limit, offset}
-	} else {
-		query = `SELECT id, name, description, price, category, stock, image_url, created_at, updated_at 
-				 FROM products ORDER BY created_at DESC LIMIT $1 OFFSET $2`
-		args = []interface{}{limit, offset}
+		whereClause += fmt.Sprintf(" AND category_id = (SELECT id FROM categories WHERE slug = $%d)", argIndex)
+		args = append(args, category)
+		argIndex++
 	}
 
-	// Выполняем запрос
+	if search != "" {
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR description ILIKE $%d)", argIndex, argIndex)
+		args = append(args, "%"+search+"%", "%"+search+"%")
+		argIndex++
+	}
+
+	if minPrice != "" {
+		whereClause += fmt.Sprintf(" AND price >= $%d", argIndex)
+		args = append(args, minPrice)
+		argIndex++
+	}
+
+	if maxPrice != "" {
+		whereClause += fmt.Sprintf(" AND price <= $%d", argIndex)
+		args = append(args, maxPrice)
+		argIndex++
+	}
+
+	// Получаем общее количество продуктов
+	var total int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products %s", whereClause)
+	err := h.db.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка подсчета продуктов"})
+		return
+	}
+
+	// Получаем продукты
+	query := fmt.Sprintf(`
+		SELECT id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+		FROM products %s
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d
+	`, whereClause, sort, order, argIndex, argIndex+1)
+
+	args = append(args, limit, offset)
 	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения продуктов"})
@@ -138,11 +187,10 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Собираем результаты
 	var products []models.ProductResponse
 	for rows.Next() {
 		var product models.Product
-		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Category, &product.Stock, &product.ImageURL, &product.CreatedAt, &product.UpdatedAt)
+		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 		if err != nil {
 			continue
 		}
@@ -152,95 +200,126 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 			Name:        product.Name,
 			Description: product.Description,
 			Price:       product.Price,
-			Category:    product.Category,
+			CategoryID:  product.CategoryID,
 			Stock:       product.Stock,
 			ImageURL:    product.ImageURL,
+			SKU:         product.SKU,
+			Weight:      product.Weight,
+			Dimensions:  product.Dimensions,
+			IsActive:    product.IsActive,
+			IsFeatured:  product.IsFeatured,
+			SortOrder:   product.SortOrder,
 			CreatedAt:   product.CreatedAt,
 			UpdatedAt:   product.UpdatedAt,
 		}
+
 		products = append(products, response)
 	}
 
 	// Сохраняем в кэш
-	if err := h.cache.SetProducts(ctx, page, limit, category, products); err != nil {
-		// Логируем ошибку, но не прерываем выполнение
-		c.Header("X-Cache-Save", "failed")
+	if h.cache != nil {
+		h.cache.SetProducts(c.Request.Context(), page, limit, category, products)
 	}
 
-	// Добавляем заголовок, что данные из БД
-	c.Header("X-Cache", "MISS")
-	c.JSON(http.StatusOK, products)
+	response := models.ProductListResponse{
+		Products: products,
+		Total:    total,
+		Page:     page,
+		Limit:    limit,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
-// GetProduct возвращает продукт по ID
+// GetProduct получает продукт по ID
 // @Summary Получение продукта по ID
-// @Description Возвращает информацию о конкретном продукте
+// @Description Возвращает информацию о продукте по его ID
 // @Tags products
 // @Produce json
 // @Param id path int true "ID продукта"
 // @Success 200 {object} models.ProductResponse
+// @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /products/{id} [get]
+// @Failure 500 {object} map[string]string
+// @Router /api/v1/products/{id} [get]
 func (h *ProductHandler) GetProduct(c *gin.Context) {
-	// Получаем ID из URL
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID продукта"})
 		return
 	}
 
-	// Пытаемся получить из кэша
-	ctx := context.Background()
-	cachedProduct, err := h.cache.GetProduct(ctx, id)
-	if err == nil {
-		// Добавляем заголовок, что данные из кэша
-		c.Header("X-Cache", "HIT")
-		c.JSON(http.StatusOK, cachedProduct)
-		return
+	// Проверяем кэш
+	if h.cache != nil {
+		cachedProduct, err := h.cache.GetProduct(c.Request.Context(), id)
+		if err == nil {
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, cachedProduct)
+			return
+		}
 	}
 
-	// Если в кэше нет, получаем из БД
+	c.Header("X-Cache", "MISS")
+
 	var product models.Product
 	err = h.db.QueryRow(`
-		SELECT id, name, description, price, category, stock, image_url, created_at, updated_at 
-		FROM products WHERE id = $1`,
-		id,
-	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Category, &product.Stock, &product.ImageURL, &product.CreatedAt, &product.UpdatedAt)
+		SELECT id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+		FROM products WHERE id = $1 AND is_active = true
+	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Продукт не найден"})
-			return
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения продукта"})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения продукта"})
 		return
 	}
 
-	// Формируем ответ
+	// Сохраняем в кэш
+	if h.cache != nil {
+		productResponse := models.ProductResponse{
+			ID:          product.ID,
+			Name:        product.Name,
+			Description: product.Description,
+			Price:       product.Price,
+			CategoryID:  product.CategoryID,
+			Stock:       product.Stock,
+			ImageURL:    product.ImageURL,
+			SKU:         product.SKU,
+			Weight:      product.Weight,
+			Dimensions:  product.Dimensions,
+			IsActive:    product.IsActive,
+			IsFeatured:  product.IsFeatured,
+			SortOrder:   product.SortOrder,
+			CreatedAt:   product.CreatedAt,
+			UpdatedAt:   product.UpdatedAt,
+		}
+		h.cache.SetProduct(c.Request.Context(), productResponse)
+	}
+
 	response := models.ProductResponse{
 		ID:          product.ID,
 		Name:        product.Name,
 		Description: product.Description,
 		Price:       product.Price,
-		Category:    product.Category,
+		CategoryID:  product.CategoryID,
 		Stock:       product.Stock,
 		ImageURL:    product.ImageURL,
+		SKU:         product.SKU,
+		Weight:      product.Weight,
+		Dimensions:  product.Dimensions,
+		IsActive:    product.IsActive,
+		IsFeatured:  product.IsFeatured,
+		SortOrder:   product.SortOrder,
 		CreatedAt:   product.CreatedAt,
 		UpdatedAt:   product.UpdatedAt,
 	}
 
-	// Сохраняем в кэш
-	if err := h.cache.SetProduct(ctx, response); err != nil {
-		// Логируем ошибку, но не прерываем выполнение
-		c.Header("X-Cache-Save", "failed")
-	}
-
-	// Добавляем заголовок, что данные из БД
-	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, response)
 }
 
-// UpdateProduct обновляет существующий продукт
+// UpdateProduct обновляет продукт
 // @Summary Обновление продукта
 // @Description Обновляет информацию о продукте (требует роль admin)
 // @Tags products
@@ -254,9 +333,9 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 // @Failure 401 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /products/{id} [put]
+// @Failure 500 {object} map[string]string
+// @Router /api/v1/products/{id} [put]
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
-	// Получаем ID из URL
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID продукта"})
@@ -264,22 +343,16 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}
 
 	var req models.ProductUpdateRequest
-
-	// Валидируем входящие данные
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверные данные: " + err.Error()})
 		return
 	}
 
-	// Проверяем, существует ли продукт
-	var existingProduct models.Product
-	err = h.db.QueryRow("SELECT id FROM products WHERE id = $1", id).Scan(&existingProduct.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Продукт не найден"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка проверки продукта"})
+	// Проверяем, что продукт существует
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)", id).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Продукт не найден"})
 		return
 	}
 
@@ -289,40 +362,80 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	argIndex := 2
 
 	if req.Name != nil {
-		query += ", name = $" + strconv.Itoa(argIndex)
+		query += fmt.Sprintf(", name = $%d", argIndex)
 		args = append(args, *req.Name)
 		argIndex++
 	}
+
 	if req.Description != nil {
-		query += ", description = $" + strconv.Itoa(argIndex)
+		query += fmt.Sprintf(", description = $%d", argIndex)
 		args = append(args, *req.Description)
 		argIndex++
 	}
+
 	if req.Price != nil {
-		query += ", price = $" + strconv.Itoa(argIndex)
+		query += fmt.Sprintf(", price = $%d", argIndex)
 		args = append(args, *req.Price)
 		argIndex++
 	}
-	if req.Category != nil {
-		query += ", category = $" + strconv.Itoa(argIndex)
-		args = append(args, *req.Category)
+
+	if req.CategoryID != nil {
+		query += fmt.Sprintf(", category_id = $%d", argIndex)
+		args = append(args, *req.CategoryID)
 		argIndex++
 	}
+
 	if req.Stock != nil {
-		query += ", stock = $" + strconv.Itoa(argIndex)
+		query += fmt.Sprintf(", stock = $%d", argIndex)
 		args = append(args, *req.Stock)
 		argIndex++
 	}
+
 	if req.ImageURL != nil {
-		query += ", image_url = $" + strconv.Itoa(argIndex)
+		query += fmt.Sprintf(", image_url = $%d", argIndex)
 		args = append(args, *req.ImageURL)
+		argIndex++
+	}
+
+	if req.SKU != nil {
+		query += fmt.Sprintf(", sku = $%d", argIndex)
+		args = append(args, *req.SKU)
+		argIndex++
+	}
+
+	if req.Weight != nil {
+		query += fmt.Sprintf(", weight = $%d", argIndex)
+		args = append(args, *req.Weight)
+		argIndex++
+	}
+
+	if req.Dimensions != nil {
+		query += fmt.Sprintf(", dimensions = $%d", argIndex)
+		args = append(args, *req.Dimensions)
+		argIndex++
+	}
+
+	if req.IsActive != nil {
+		query += fmt.Sprintf(", is_active = $%d", argIndex)
+		args = append(args, *req.IsActive)
+		argIndex++
+	}
+
+	if req.IsFeatured != nil {
+		query += fmt.Sprintf(", is_featured = $%d", argIndex)
+		args = append(args, *req.IsFeatured)
+		argIndex++
+	}
+
+	if req.SortOrder != nil {
+		query += fmt.Sprintf(", sort_order = $%d", argIndex)
+		args = append(args, *req.SortOrder)
 		argIndex++
 	}
 
 	query += " WHERE id = $" + strconv.Itoa(argIndex)
 	args = append(args, id)
 
-	// Выполняем обновление
 	_, err = h.db.Exec(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обновления продукта"})
@@ -332,34 +445,36 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	// Получаем обновленный продукт
 	var product models.Product
 	err = h.db.QueryRow(`
-		SELECT id, name, description, price, category, stock, image_url, created_at, updated_at 
-		FROM products WHERE id = $1`,
-		id,
-	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Category, &product.Stock, &product.ImageURL, &product.CreatedAt, &product.UpdatedAt)
+		SELECT id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+		FROM products WHERE id = $1
+	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения обновленного продукта"})
 		return
 	}
 
-	// Формируем ответ
+	// Инвалидируем кэш продуктов
+	if h.cache != nil {
+		h.cache.InvalidateProductCache(c.Request.Context(), id)
+	}
+
 	response := models.ProductResponse{
 		ID:          product.ID,
 		Name:        product.Name,
 		Description: product.Description,
 		Price:       product.Price,
-		Category:    product.Category,
+		CategoryID:  product.CategoryID,
 		Stock:       product.Stock,
 		ImageURL:    product.ImageURL,
+		SKU:         product.SKU,
+		Weight:      product.Weight,
+		Dimensions:  product.Dimensions,
+		IsActive:    product.IsActive,
+		IsFeatured:  product.IsFeatured,
+		SortOrder:   product.SortOrder,
 		CreatedAt:   product.CreatedAt,
 		UpdatedAt:   product.UpdatedAt,
-	}
-
-	// Инвалидируем кэш после обновления продукта
-	ctx := context.Background()
-	if err := h.cache.InvalidateProductCache(ctx, product.ID); err != nil {
-		// Логируем ошибку, но не прерываем выполнение
-		c.Header("X-Cache-Invalidation", "failed")
 	}
 
 	c.JSON(http.StatusOK, response)

@@ -323,3 +323,47 @@ diagnose: ## Диагностика системы
 	@echo "Порт 8080: $(lsof -i :8080 >/dev/null && echo "✅ Занят" || echo "❌ Свободен")"
 	@echo "Порт 5432: $(lsof -i :5432 >/dev/null && echo "✅ Занят" || echo "❌ Свободен")"
 	@echo "Порт 6379: $(lsof -i :6379 >/dev/null && echo "✅ Занят" || echo "❌ Свободен")" 
+
+# Команды для интернет-магазина
+ecommerce-setup: ## Настройка базы данных для интернет-магазина
+	@echo "🛒 Настройка базы данных для интернет-магазина..."
+	@docker exec -i products_postgres psql -U postgres -d products_db < init.sql
+	@echo "✅ База данных настроена"
+
+ecommerce-test: ## Тестирование функций интернет-магазина
+	@echo "🧪 Тестирование функций интернет-магазина..."
+	@echo "1. Создание пользователя..."
+	@curl -X POST http://localhost:8080/api/v1/auth/register \
+		-H "Content-Type: application/json" \
+		-d '{"username":"testuser","email":"test@example.com","password":"password"}' | jq .
+	@echo ""
+	@echo "2. Вход пользователя..."
+	@TOKEN=$$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"username":"testuser","password":"password"}' | jq -r '.token')
+	@echo "Токен получен: $$TOKEN"
+	@echo ""
+	@echo "3. Добавление товара в корзину..."
+	@curl -X POST http://localhost:8080/api/v1/cart \
+		-H "Authorization: Bearer $$TOKEN" \
+		-H "Content-Type: application/json" \
+		-d '{"product_id": 1, "quantity": 2}' | jq .
+	@echo ""
+	@echo "4. Просмотр корзины..."
+	@curl -X GET http://localhost:8080/api/v1/cart \
+		-H "Authorization: Bearer $$TOKEN" | jq .
+	@echo ""
+	@echo "5. Создание заказа..."
+	@curl -X POST http://localhost:8080/api/v1/orders \
+		-H "Authorization: Bearer $$TOKEN" \
+		-H "Content-Type: application/json" \
+		-d '{"items":[{"product_id":1,"quantity":1}],"shipping_address":"ул. Тестовая, 1","billing_address":"ул. Тестовая, 1","payment_method":"card"}' | jq .
+	@echo ""
+	@echo "✅ Тестирование завершено"
+
+ecommerce-demo: ## Демонстрация функций интернет-магазина
+	@echo "🎬 Демонстрация функций интернет-магазина..."
+	@echo "📱 Откройте Swagger UI: http://localhost:8080/swagger/index.html"
+	@echo "🔑 Используйте токен админа для полного доступа"
+	@echo "🛒 Протестируйте корзину и заказы"
+	@echo "📊 Проверьте статистику кэша" 

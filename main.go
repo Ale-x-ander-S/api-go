@@ -10,10 +10,8 @@ import (
 	"api-go/config"
 	"api-go/database"
 	_ "api-go/docs" // Импорт для Swagger документации
-	"api-go/middleware"
 	"api-go/routes"
 
-	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
@@ -91,15 +89,8 @@ func main() {
 		log.Fatal("Ошибка инициализации таблиц:", err)
 	}
 
-	// Создаем Gin роутер
-	router := gin.Default()
-
-	// Добавляем middleware для логирования и CORS
-	router.Use(middleware.CORS())
-	router.Use(middleware.Logger())
-
-	// Инициализируем маршруты
-	routes.SetupRoutes(router, db, cfg, redisClient)
+	// Настраиваем маршруты
+	router := routes.SetupRoutes(cfg, db, redisClient)
 
 	// Запускаем сервер
 	port := os.Getenv("SERVER_PORT")

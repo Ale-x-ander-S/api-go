@@ -52,9 +52,15 @@ func InitTables(db *sql.DB) error {
 		name VARCHAR(200) NOT NULL,
 		description TEXT,
 		price DECIMAL(10,2) NOT NULL CHECK (price > 0),
-		category VARCHAR(100),
+		category_id INTEGER REFERENCES categories(id),
 		stock INTEGER DEFAULT 0 CHECK (stock >= 0),
 		image_url TEXT,
+		sku VARCHAR(100) UNIQUE,
+		weight DECIMAL(8,2),
+		dimensions VARCHAR(50),
+		is_active BOOLEAN DEFAULT true,
+		is_featured BOOLEAN DEFAULT false,
+		sort_order INTEGER DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
