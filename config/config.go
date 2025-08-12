@@ -34,7 +34,9 @@ type RedisConfig struct {
 
 // JWTConfig содержит настройки JWT
 type JWTConfig struct {
-	Secret string
+	Secret            string
+	ExpiryHours       int // Время жизни токена в часах
+	RefreshExpiryDays int // Время жизни refresh токена в днях
 }
 
 // ServerConfig содержит настройки сервера
@@ -48,6 +50,8 @@ func Load() *Config {
 	redisPort, _ := strconv.Atoi(getEnv("REDIS_PORT", "6379"))
 	redisDB, _ := strconv.Atoi(getEnv("REDIS_DB", "0"))
 	redisTTL, _ := strconv.Atoi(getEnv("REDIS_TTL", "3600"))
+	jwtExpiryHours, _ := strconv.Atoi(getEnv("JWT_EXPIRY_HOURS", "24"))
+	jwtRefreshExpiryDays, _ := strconv.Atoi(getEnv("JWT_REFRESH_EXPIRY_DAYS", "7"))
 
 	return &Config{
 		Database: DatabaseConfig{
@@ -66,7 +70,9 @@ func Load() *Config {
 			TTL:      redisTTL,
 		},
 		JWT: JWTConfig{
-			Secret: getEnv("JWT_SECRET", "default-secret-key"),
+			Secret:            getEnv("JWT_SECRET", "default-secret-key"),
+			ExpiryHours:       jwtExpiryHours,
+			RefreshExpiryDays: jwtRefreshExpiryDays,
 		},
 		Server: ServerConfig{
 			Port: getEnv("SERVER_PORT", "8080"),

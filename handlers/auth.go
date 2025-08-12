@@ -134,7 +134,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Генерируем JWT токен
-	token, err := utils.GenerateToken(user.ID, user.Username, user.Role, h.cfg.JWT.Secret)
+	token, err := utils.GenerateToken(user.ID, user.Username, user.Role, h.cfg.JWT.Secret, h.cfg.JWT.ExpiryHours)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка генерации токена"})
 		return

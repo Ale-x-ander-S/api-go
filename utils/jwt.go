@@ -16,14 +16,14 @@ type Claims struct {
 }
 
 // GenerateToken создает новый JWT токен для пользователя
-func GenerateToken(userID int, username, role, secret string) (string, error) {
+func GenerateToken(userID int, username, role, secret string, expiryHours int) (string, error) {
 	// Создаем claims для токена
 	claims := Claims{
 		UserID:   userID,
 		Username: username,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // Токен действителен 24 часа
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expiryHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "products-api",
