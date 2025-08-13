@@ -30,7 +30,7 @@ echo -e "\n3. Вход пользователя..."
 LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "testuser",
+    "email": "test@example.com",
     "password": "password123"
   }')
 

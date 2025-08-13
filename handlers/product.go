@@ -96,7 +96,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 // @Produce json
 // @Param page query int false "Номер страницы" default(1)
 // @Param limit query int false "Количество элементов на странице" default(10)
-// @Param category query string false "Фильтр по категории"
+// @Param category_id query string false "Фильтр по ID категории"
 // @Param search query string false "Поиск по названию"
 // @Param min_price query number false "Минимальная цена"
 // @Param max_price query number false "Максимальная цена"
@@ -108,7 +108,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 func (h *ProductHandler) GetProducts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	category := c.Query("category")
+	categoryID := c.Query("category_id")
 	search := c.Query("search")
 	minPrice := c.Query("min_price")
 	maxPrice := c.Query("max_price")
@@ -119,8 +119,8 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 
 	// Проверяем кэш
 	if h.cache != nil {
-		log.Printf("DEBUG: Checking cache for page=%d, limit=%d, category=%s", page, limit, category)
-		cachedProducts, err := h.cache.GetProducts(c.Request.Context(), page, limit, category)
+		log.Printf("DEBUG: Checking cache for page=%d, limit=%d, category_id=%s", page, limit, categoryID)
+		cachedProducts, err := h.cache.GetProducts(c.Request.Context(), page, limit, categoryID)
 		if err == nil {
 			log.Printf("DEBUG: Cache HIT, returning %d products", len(cachedProducts))
 			c.Header("X-Cache", "HIT")
@@ -144,9 +144,9 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	args := []interface{}{}
 	argIndex := 1
 
-	if category != "" {
-		whereClause += fmt.Sprintf(" AND category_id = (SELECT id FROM categories WHERE slug = $%d)", argIndex)
-		args = append(args, category)
+	if categoryID != "" {
+		whereClause += fmt.Sprintf(" AND category_id = $%d", argIndex)
+		args = append(args, categoryID)
 		argIndex++
 	}
 
@@ -184,8 +184,10 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 
 	// Получаем продукты
 	query := fmt.Sprintf(`
-		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
-		FROM products %s
+		SELECT p.id, p.name, p.description, p.price, COALESCE(p.category_id, 0), p.stock, COALESCE(p.image_url, ''), COALESCE(p.sku, ''), COALESCE(p.weight, 0), COALESCE(p.dimensions, ''), p.is_active, p.is_featured, p.sort_order, p.created_at, p.updated_at, c.slug as category_slug
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.id
+		%s
 		ORDER BY %s %s
 		LIMIT $%d OFFSET $%d
 	`, whereClause, sort, order, argIndex, argIndex+1)
@@ -206,7 +208,8 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	log.Printf("DEBUG: Starting to scan rows...")
 	for rows.Next() {
 		var product models.Product
-		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
+		var categorySlug sql.NullString
+		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt, &categorySlug)
 		if err != nil {
 			log.Printf("DEBUG: Error scanning row: %v", err)
 			continue
@@ -231,12 +234,65 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 			UpdatedAt:   product.UpdatedAt,
 		}
 
+		// Заполняем slug категории
+		if categorySlug.Valid {
+			response.CategorySlug = categorySlug.String
+		}
+
 		products = append(products, response)
 	}
 
-	// Сохраняем в кэш
+	// Сохраняем все продукты в кэш (если кэш пустой)
 	if h.cache != nil {
-		h.cache.SetProducts(c.Request.Context(), page, limit, category, products)
+		// Проверяем есть ли уже продукты в кэше
+		_, err := h.cache.GetProducts(c.Request.Context(), 1, 1, "")
+		if err != nil {
+			// Кэш пустой, получаем все продукты с категориями и сохраняем
+			allProductsQuery := `
+				SELECT p.id, p.name, p.description, p.price, COALESCE(p.category_id, 0), p.stock, COALESCE(p.image_url, ''), COALESCE(p.sku, ''), COALESCE(p.weight, 0), COALESCE(p.dimensions, ''), p.is_active, p.is_featured, p.sort_order, p.created_at, p.updated_at, c.slug as category_slug
+				FROM products p
+				LEFT JOIN categories c ON p.category_id = c.id
+				WHERE p.is_active = true
+				ORDER BY p.id ASC
+			`
+			allRows, err := h.db.Query(allProductsQuery)
+			if err == nil {
+				defer allRows.Close()
+				var allProducts []models.ProductResponse
+				for allRows.Next() {
+					var product models.Product
+					var categorySlug sql.NullString
+					err := allRows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt, &categorySlug)
+					if err == nil {
+						response := models.ProductResponse{
+							ID:          product.ID,
+							Name:        product.Name,
+							Description: product.Description,
+							Price:       product.Price,
+							CategoryID:  product.CategoryID,
+							Stock:       product.Stock,
+							ImageURL:    product.ImageURL,
+							SKU:         product.SKU,
+							Weight:      product.Weight,
+							Dimensions:  product.Dimensions,
+							IsActive:    product.IsActive,
+							IsFeatured:  product.IsFeatured,
+							SortOrder:   product.SortOrder,
+							CreatedAt:   product.CreatedAt,
+							UpdatedAt:   product.UpdatedAt,
+						}
+						// Добавляем slug категории в response для фильтрации
+						if categorySlug.Valid {
+							response.CategorySlug = categorySlug.String
+						}
+						allProducts = append(allProducts, response)
+					}
+				}
+				// Сохраняем все продукты в кэш
+				h.cache.SetProducts(c.Request.Context(), allProducts)
+				log.Printf("DEBUG: Все продукты сохранены в кэш: %d штук", len(allProducts))
+			}
+		}
 	}
 
 	response := models.ProductListResponse{
@@ -281,7 +337,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 
 	var product models.Product
 	err = h.db.QueryRow(`
-		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
+		SELECT id, name, description, price, COALESCE(category_id, 0), stock, COALESCE(image_url, ''), COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
 		FROM products WHERE id = $1 AND is_active = true
 	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 

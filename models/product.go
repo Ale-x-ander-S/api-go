@@ -57,21 +57,22 @@ type ProductUpdateRequest struct {
 
 // ProductResponse представляет ответ с продуктом
 type ProductResponse struct {
-	ID          int       `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Price       float64   `json:"price"`
-	CategoryID  *int      `json:"category_id"`
-	Stock       int       `json:"stock"`
-	ImageURL    string    `json:"image_url"`
-	SKU         string    `json:"sku"`
-	Weight      *float64  `json:"weight"`
-	Dimensions  string    `json:"dimensions"`
-	IsActive    bool      `json:"is_active"`
-	IsFeatured  bool      `json:"is_featured"`
-	SortOrder   int       `json:"sort_order"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           int       `json:"id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	Price        float64   `json:"price"`
+	CategoryID   *int      `json:"category_id"`
+	CategorySlug string    `json:"category_slug,omitempty"`
+	Stock        int       `json:"stock"`
+	ImageURL     string    `json:"image_url"`
+	SKU          string    `json:"sku"`
+	Weight       *float64  `json:"weight"`
+	Dimensions   string    `json:"dimensions"`
+	IsActive     bool      `json:"is_active"`
+	IsFeatured   bool      `json:"is_featured"`
+	SortOrder    int       `json:"sort_order"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // ProductListResponse представляет ответ со списком продуктов

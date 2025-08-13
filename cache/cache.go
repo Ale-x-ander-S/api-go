@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 
 	"api-go/database"
 	"api-go/models"
@@ -23,49 +24,47 @@ func NewProductCache(redis *database.RedisClient) *ProductCache {
 
 // Ключи кэша
 const (
-	ProductListKey     = "products:list"
-	ProductKey         = "product:%d"
-	ProductCategoryKey = "products:category:%s"
-	ProductPageKey     = "products:page:%d:limit:%d"
+	AllProductsKey     = "products:all"         // Все продукты
+	ProductKey         = "product:%d"           // Конкретный продукт
+	ProductCategoryKey = "products:category:%s" // По категории
 )
 
 // GetProducts получает список продуктов из кэша
-func (c *ProductCache) GetProducts(ctx context.Context, page, limit int, category string) ([]models.ProductResponse, error) {
-	var key string
-
-	if category != "" {
-		key = fmt.Sprintf(ProductCategoryKey, category)
-	} else {
-		key = fmt.Sprintf(ProductPageKey, page, limit)
-	}
-
-	var products []models.ProductResponse
-	err := c.redis.Get(ctx, key, &products)
+func (c *ProductCache) GetProducts(ctx context.Context, page, limit int, categoryID string) ([]models.ProductResponse, error) {
+	// Всегда получаем все продукты из кэша
+	var allProducts []models.ProductResponse
+	err := c.redis.Get(ctx, AllProductsKey, &allProducts)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Printf("Продукты загружены из кэша: %s", key)
-	return products, nil
-}
-
-// SetProducts сохраняет список продуктов в кэш
-func (c *ProductCache) SetProducts(ctx context.Context, page, limit int, category string, products []models.ProductResponse) error {
-	var key string
-
-	if category != "" {
-		key = fmt.Sprintf(ProductCategoryKey, category)
-	} else {
-		key = fmt.Sprintf(ProductPageKey, page, limit)
+	// Фильтруем по category_id если нужно
+	if categoryID != "" {
+		allProducts = c.filterByCategoryID(allProducts, categoryID)
 	}
 
-	err := c.redis.Set(ctx, key, products)
+	// Применяем пагинацию
+	start := (page - 1) * limit
+	end := start + limit
+	if start >= len(allProducts) {
+		return []models.ProductResponse{}, nil
+	}
+	if end > len(allProducts) {
+		end = len(allProducts)
+	}
+
+	return allProducts[start:end], nil
+}
+
+// SetProducts сохраняет все продукты в кэш
+func (c *ProductCache) SetProducts(ctx context.Context, products []models.ProductResponse) error {
+	err := c.redis.Set(ctx, AllProductsKey, products)
 	if err != nil {
-		log.Printf("Ошибка сохранения в кэш: %v", err)
+		log.Printf("Ошибка сохранения всех продуктов в кэш: %v", err)
 		return err
 	}
 
-	log.Printf("Продукты сохранены в кэш: %s", key)
+	log.Printf("Все продукты сохранены в кэш: %d штук", len(products))
 	return nil
 }
 
@@ -135,10 +134,9 @@ func (c *ProductCache) GetCacheStats(ctx context.Context) map[string]interface{}
 
 	// Подсчитываем количество ключей по паттернам
 	patterns := []string{
-		"products:list",
+		AllProductsKey,
 		"product:*",
 		"products:category:*",
-		"products:page:*",
 	}
 
 	for _, pattern := range patterns {
@@ -150,5 +148,34 @@ func (c *ProductCache) GetCacheStats(ctx context.Context) map[string]interface{}
 		}
 	}
 
+	// Добавляем информацию о количестве продуктов в кэше
+	var allProducts []models.ProductResponse
+	err := c.redis.Get(ctx, AllProductsKey, &allProducts)
+	if err == nil {
+		stats["cached_products_count"] = len(allProducts)
+	} else {
+		stats["cached_products_count"] = 0
+	}
+
 	return stats
+}
+
+// filterByCategoryID фильтрует продукты по ID категории
+func (c *ProductCache) filterByCategoryID(products []models.ProductResponse, categoryID string) []models.ProductResponse {
+	var filtered []models.ProductResponse
+
+	// Конвертируем categoryID в int для сравнения
+	id, err := strconv.Atoi(categoryID)
+	if err != nil {
+		// Если не удалось конвертировать, возвращаем пустой список
+		return filtered
+	}
+
+	for _, product := range products {
+		if product.CategoryID != nil && *product.CategoryID == id {
+			filtered = append(filtered, product)
+		}
+	}
+
+	return filtered
 }

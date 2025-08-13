@@ -231,30 +231,12 @@ func initializeProductCache(db *sql.DB, redisClient *database.RedisClient) error
 	// Создаем кэш для продуктов
 	productCache := cache.NewProductCache(redisClient)
 
-	// Кэшируем продукты по страницам (по 10 штук)
-	pageSize := 10
-	totalPages := (len(products) + pageSize - 1) / pageSize
-
-	for page := 1; page <= totalPages; page++ {
-		start := (page - 1) * pageSize
-		end := start + pageSize
-		if end > len(products) {
-			end = len(products)
-		}
-
-		pageProducts := products[start:end]
-		err := productCache.SetProducts(context.Background(), page, pageSize, "", pageProducts)
-		if err != nil {
-			log.Printf("Предупреждение: не удалось кэшировать страницу %d: %v", page, err)
-		}
-	}
-
-	// Кэшируем общий список продуктов
-	err = productCache.SetProducts(context.Background(), 1, len(products), "", products)
+	// Кэшируем все продукты в одном ключе
+	err = productCache.SetProducts(context.Background(), products)
 	if err != nil {
-		log.Printf("Предупреждение: не удалось кэшировать общий список: %v", err)
+		log.Printf("Предупреждение: не удалось кэшировать продукты: %v", err)
 	}
 
-	log.Printf("Кэшировано %d продуктов в %d страницах", len(products), totalPages)
+	log.Printf("Кэшировано %d продуктов", len(products))
 	return nil
 }
