@@ -8,10 +8,11 @@ RUN apk add --no-cache git ca-certificates tzdata
 WORKDIR /app
 
 # Копируем файлы зависимостей
-COPY go.mod go.sum ./
+COPY go.mod ./
 
-# Скачиваем зависимости
+# Скачиваем зависимости и восстанавливаем go.sum если нужно
 RUN go mod download
+RUN if [ -f go.sum ]; then go mod verify || go mod tidy; else go mod tidy; fi
 
 # Копируем исходный код
 COPY . .

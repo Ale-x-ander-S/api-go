@@ -168,6 +168,17 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		argIndex++
 	}
 
+	// Безопасная сортировка
+	safeSort := "id"
+	if sort == "created_at" || sort == "updated_at" || sort == "price" || sort == "name" {
+		safeSort = sort
+	}
+
+	safeOrder := "ASC"
+	if order == "desc" {
+		safeOrder = "DESC"
+	}
+
 	// Получаем общее количество продуктов
 	var total int
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products %s", whereClause)
@@ -190,11 +201,14 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		%s
 		ORDER BY %s %s
 		LIMIT $%d OFFSET $%d
-	`, whereClause, sort, order, argIndex, argIndex+1)
+	`, whereClause, safeSort, safeOrder, argIndex, argIndex+1)
 
 	// Логируем SQL запрос для отладки
+	log.Printf("DEBUG: Sort: %s, Order: %s", sort, order)
+	log.Printf("DEBUG: Safe Sort: %s, Safe Order: %s", safeSort, safeOrder)
 	log.Printf("DEBUG: SQL Query: %s", query)
 	log.Printf("DEBUG: Args: %v", args)
+	log.Printf("DEBUG: Final Args: %v", append(args, limit, offset))
 
 	args = append(args, limit, offset)
 	rows, err := h.db.Query(query, args...)

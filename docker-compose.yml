@@ -5,6 +5,8 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: products_postgres
+    env_file:
+      - config.dev.env
     environment:
       POSTGRES_DB: ${DB_NAME:-products_db}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -26,6 +28,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: products_redis
+    env_file:
+      - config.dev.env
     ports:
       - "6379:6379"
     volumes:

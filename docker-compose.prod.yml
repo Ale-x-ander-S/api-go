@@ -5,6 +5,8 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: products_postgres_prod
+    env_file:
+      - config.prod.env
     environment:
       POSTGRES_DB: ${DB_NAME:-products_db_prod}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -17,10 +19,11 @@ services:
     networks:
       - products_network_prod
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-products_db_prod}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres -d products_db_prod"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -29,6 +32,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: products_redis_prod
+    env_file:
+      - config.prod.env
     ports:
       - "6381:6379"  # Другой порт для production
     volumes:
@@ -36,10 +41,11 @@ services:
     networks:
       - products_network_prod
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
     restart: unless-stopped
     security_opt:

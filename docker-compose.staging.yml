@@ -5,6 +5,8 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: products_postgres_staging
+    env_file:
+      - config.staging.env
     environment:
       POSTGRES_DB: ${DB_NAME:-products_db_staging}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -17,16 +19,19 @@ services:
     networks:
       - products_network_staging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-products_db_staging}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres -d products_db_staging"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   # Redis для кэширования
   redis:
     image: redis:7-alpine
     container_name: products_redis_staging
+    env_file:
+      - config.staging.env
     ports:
       - "6380:6379"  # Другой порт для staging
     volumes:
@@ -34,10 +39,11 @@ services:
     networks:
       - products_network_staging
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-staging_redis_password}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-staging_redis_password}
     restart: unless-stopped
 

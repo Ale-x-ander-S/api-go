@@ -403,4 +403,64 @@ deploy-local: ## Локальный деплой
 
 check-config: ## Проверка конфигурации
 	@echo "🔍 Проверка конфигурации..."
-	@./scripts/check-config.sh 
+	@./scripts/check-config.sh
+
+clean-deploy: ## Полная очистка сервера и передеплой
+	@echo "🧹 Полная очистка сервера и передеплой..."
+	@echo "Использование: make clean-deploy ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make clean-deploy ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/clean-deploy.sh $(ENV) $(SERVER) $(USER)
+
+fix-redis: ## Исправить проблемы с Redis
+	@echo "🔧 Исправление проблем с Redis..."
+	@echo "Использование: make fix-redis ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make fix-redis ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/fix-redis.sh $(ENV) $(SERVER) $(USER)
+
+fix-postgres: ## Исправить проблемы с PostgreSQL
+	@echo "🔧 Исправление проблем с PostgreSQL..."
+	@echo "Использование: make fix-postgres ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make fix-postgres ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/fix-postgres.sh $(ENV) $(SERVER) $(USER)
+
+fix-databases: ## Исправить все проблемы с базами данных
+	@echo "🔧 Исправление всех проблем с базами данных..."
+	@echo "Использование: make fix-databases ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make fix-databases ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/fix-databases.sh $(ENV) $(SERVER) $(USER)
+
+start-redis-only: ## Запустить Redis без healthcheck
+	@echo "🚀 Запуск Redis без healthcheck..."
+	@echo "Использование: make start-redis-only ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make start-redis-only ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/start-redis-only.sh $(ENV) $(SERVER) $(USER)
+
+deploy-simple: ## Простой деплой без healthcheck
+	@echo "🚀 Простой деплой без healthcheck..."
+	@echo "Использование: make deploy-simple ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make deploy-simple ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/deploy-simple.sh $(ENV) $(SERVER) $(USER) 
