@@ -20,7 +20,7 @@ main
 
 # Конфигурационные файлы с секретами
 .env
-config.env
+config.*.env
 *.key
 *.pem
 

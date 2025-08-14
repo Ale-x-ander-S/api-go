@@ -27,7 +27,7 @@ case $ENVIRONMENT in
     dev|development)
         ENVIRONMENT="dev"
         DOCKER_COMPOSE_FILE="docker-compose.yml"
-        CONFIG_FILE="config.env"
+        CONFIG_FILE="config.dev.env"
         ;;
     staging)
         ENVIRONMENT="staging"
@@ -120,7 +120,7 @@ build_application() {
     make deps
     
     # Генерация Swagger документации
-    make swagger
+    make swagger-auto
     
     # Сборка приложения
     make build

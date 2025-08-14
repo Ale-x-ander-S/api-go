@@ -51,22 +51,8 @@ services:
     container_name: products_api_prod
     ports:
       - "8082:8080"  # Другой порт для production
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME:-products_db_prod}
-      - DB_SSL_MODE=${DB_SSL_MODE:-disable}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_DB=${REDIS_DB:-0}
-      - REDIS_TTL=${REDIS_TTL:-3600}
-      - JWT_SECRET=${JWT_SECRET}
-      - SERVER_PORT=8080
-      - ENVIRONMENT=production
-      - LOG_LEVEL=${LOG_LEVEL:-warn}
+    env_file:
+      - config.prod.env
     depends_on:
       postgres:
         condition: service_healthy
