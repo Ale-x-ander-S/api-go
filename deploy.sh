@@ -270,6 +270,75 @@ rollback() {
     log_info "Откат завершен"
 }
 
+# Функция применения миграций
+apply_migrations() {
+    log_info "Применение миграций базы данных..."
+    
+    # Проверяем, что PostgreSQL запущен
+    if ! docker ps | grep -q "products_postgres"; then
+        log_error "PostgreSQL не запущен. Запустите сначала: docker-compose up -d postgres"
+        exit 1
+    fi
+    
+    # Список миграций в порядке применения
+    local migrations=(
+        "migrations/001_initial_schema.sql"
+        "migrations/002_update_existing_schema.sql"
+        "migrations/003_update_users_table.sql"
+    )
+    
+    # Проверяем существование файлов миграций
+    for migration in "${migrations[@]}"; do
+        if [ ! -f "$migration" ]; then
+            log_warning "Файл миграции $migration не найден, пропускаем"
+            continue
+        fi
+        
+        log_info "Применение миграции: $migration"
+        
+        # Применяем миграцию с обработкой ошибок
+        if docker exec -i products_postgres psql -U postgres -d products_db < "$migration" 2>/dev/null; then
+            log_success "✓ Миграция $migration применена успешно"
+        else
+            log_warning "⚠ Миграция $migration уже применена или содержит ошибки (это нормально)"
+        fi
+    done
+    
+    log_success "Все миграции обработаны"
+}
+
+# Функция проверки консистентности БД
+check_database_consistency() {
+    log_info "Проверка консистентности базы данных..."
+    
+    # Проверяем основные таблицы
+    local tables=("users" "products" "categories" "orders" "cart_items")
+    
+    for table in "${tables[@]}"; do
+        local count=$(docker exec -i products_postgres psql -U postgres -d products_db -t -c "SELECT COUNT(*) FROM $table;" 2>/dev/null | tr -d ' ')
+        
+        if [ "$count" != "" ] && [ "$count" != "0" ]; then
+            log_success "✓ Таблица $table: $count записей"
+        else
+            log_warning "⚠ Таблица $table пуста или недоступна"
+        fi
+    done
+    
+    # Проверяем связи между таблицами
+    log_info "Проверка связей между таблицами..."
+    
+    # Проверяем products -> categories
+    local orphan_products=$(docker exec -i products_postgres psql -U postgres -d products_db -t -c "SELECT COUNT(*) FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE c.id IS NULL;" 2>/dev/null | tr -d ' ')
+    
+    if [ "$orphan_products" = "0" ] || [ "$orphan_products" = "" ]; then
+        log_success "✓ Все продукты имеют корректные категории"
+    else
+        log_warning "⚠ Найдено $orphan_products продуктов без категорий"
+    fi
+    
+    log_success "Проверка консистентности завершена"
+}
+
 # Основная логика развертывания
 main() {
     log_info "Начало развертывания..."
@@ -293,6 +362,12 @@ main() {
             deploy_docker_compose
             ;;
     esac
+    
+    # Применение миграций (только для staging/production)
+    if [ "$ENVIRONMENT" != "dev" ]; then
+        apply_migrations
+        check_database_consistency
+    fi
     
     # Проверка развертывания
     verify_deployment

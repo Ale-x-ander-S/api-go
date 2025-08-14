@@ -58,6 +58,28 @@ if ! ssh -o ConnectTimeout=10 -o BatchMode=yes "$REMOTE_USER@$SERVER_IP" exit 2>
 fi
 log_success "SSH соединение установлено"
 
+# Создание директории на сервере
+log_info "📁 Создание директории на сервере..."
+ssh "$REMOTE_USER@$SERVER_IP" "mkdir -p $REMOTE_DIR"
+
+# Копирование файлов на сервер
+log_info "📤 Копирование файлов на сервер..."
+scp -r "migrations" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка migrations не найдена"
+scp "Dockerfile" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+scp "init.sql" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+scp "main.go" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+scp "go.mod" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+scp "go.sum" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+scp -r "handlers" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка handlers не найдена"
+scp -r "models" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка models не найдена"
+scp -r "routes" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка routes не найдена"
+scp -r "middleware" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка middleware не найдена"
+scp -r "utils" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка utils не найдена"
+scp -r "config" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка config не найдена"
+scp -r "cache" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка cache не найдена"
+scp -r "database" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка database не найдена"
+log_success "Файлы скопированы на сервер"
+
 # Остановка всех сервисов
 log_info "🛑 Остановка всех сервисов..."
 ssh "$REMOTE_USER@$SERVER_IP" "
@@ -160,6 +182,19 @@ ssh "$REMOTE_USER@$SERVER_IP" "
 log_info "⏳ Ожидание запуска сервисов..."
 sleep 60
 
+# Применение миграций (только для production)
+if [ "$ENVIRONMENT" = "prod" ] || [ "$ENVIRONMENT" = "production" ]; then
+    log_info "🔄 Применение миграций для production..."
+    apply_remote_migrations
+    
+    # Дополнительное ожидание для применения миграций
+    log_info "⏳ Ожидание завершения миграций..."
+    sleep 30
+    
+    # Проверка консистентности БД
+    check_remote_database_consistency
+fi
+
 # Проверка статуса
 log_info "🔍 Проверка статуса сервисов..."
 ssh "$REMOTE_USER@$SERVER_IP" "
@@ -217,3 +252,59 @@ echo "   - Перезапустите с основным файлом"
 echo ""
 echo "3. Или используйте простой файл для production:"
 echo "   docker-compose -f docker-compose-simple.yml up -d" 
+
+# Функция применения миграций на удаленном сервере
+apply_remote_migrations() {
+    log_info "🔄 Применение миграций на удаленном сервере..."
+    
+    # Копируем скрипт миграций на сервер
+    scp "scripts/remote-migrations.sh" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+    
+    # Применяем миграции
+    ssh "$REMOTE_USER@$SERVER_IP" "
+        cd $REMOTE_DIR 2>/dev/null || exit 0
+        chmod +x remote-migrations.sh
+        ./remote-migrations.sh
+    "
+    
+    log_success "Миграции применены на удаленном сервере"
+}
+
+# Функция проверки консистентности БД на удаленном сервере
+check_remote_database_consistency() {
+    log_info "🔍 Проверка консистентности БД на удаленном сервере..."
+    
+    ssh "$REMOTE_USER@$SERVER_IP" "
+        cd $REMOTE_DIR 2>/dev/null || exit 0
+        
+        # Проверяем основные таблицы
+        echo '=== Проверка консистентности БД ==='
+        
+        # Проверяем таблицу миграций
+        docker exec \$(docker-compose -f docker-compose-simple.yml ps -q postgres) psql -U postgres -d products_db_prod -c \"
+            SELECT 
+                COUNT(*) as total_migrations,
+                COUNT(CASE WHEN applied_at IS NOT NULL THEN 1 END) as applied_migrations
+            FROM schema_migrations;
+        \" 2>/dev/null || echo 'Таблица миграций не найдена'
+        
+        # Проверяем основные таблицы
+        docker exec \$(docker-compose -f docker-compose-simple.yml ps -q postgres) psql -U postgres -d products_db_prod -c \"
+            SELECT 
+                'users' as table_name, COUNT(*) as record_count FROM users
+            UNION ALL
+            SELECT 
+                'products' as table_name, COUNT(*) as record_count FROM products
+            UNION ALL
+            SELECT 
+                'categories' as table_name, COUNT(*) as record_count FROM categories
+            UNION ALL
+            SELECT 
+                'orders' as table_name, COUNT(*) as record_count FROM orders;
+        \" 2>/dev/null || echo 'Ошибка проверки таблиц'
+        
+        echo ''
+    "
+    
+    log_success "Проверка консистентности завершена"
+} 

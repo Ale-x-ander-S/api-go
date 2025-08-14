@@ -332,16 +332,37 @@ ecommerce-setup: ## Настройка базы данных для интерн
 
 migrate: ## Применить миграции базы данных
 	@echo "🔄 Применение миграций..."
-	@docker exec -i products_postgres psql -U postgres -d products_db < migrations/001_initial_schema.sql
-	@echo "✅ Миграции применены"
+	@./scripts/manage-migrations.sh apply
 
 migrate-fresh: ## Создать новую базу данных и применить миграции
 	@echo "🆕 Создание новой базы данных..."
 	@docker exec -i products_postgres psql -U postgres -c "DROP DATABASE IF EXISTS products_db;"
 	@docker exec -i products_postgres psql -U postgres -c "CREATE DATABASE products_db;"
 	@echo "🔄 Применение миграций..."
-	@docker exec -i products_postgres psql -U postgres -d products_db < migrations/001_initial_schema.sql
+	@./scripts/manage-migrations.sh apply
 	@echo "✅ База данных создана и миграции применены"
+
+migration-create: ## Создать новую миграцию
+	@echo "📝 Создание новой миграции..."
+	@echo "Использование: make migration-create NAME=migration_name"
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Укажите NAME=migration_name"; \
+		echo "Пример: make migration-create NAME=add_user_phone"; \
+		exit 1; \
+	fi
+	@./scripts/manage-migrations.sh create "$(NAME)"
+
+migration-status: ## Показать статус миграций
+	@echo "📊 Статус миграций..."
+	@./scripts/manage-migrations.sh status
+
+migration-verify: ## Проверить целостность миграций
+	@echo "🔍 Проверка целостности миграций..."
+	@./scripts/manage-migrations.sh verify
+
+migration-rollback: ## Откатить последнюю миграцию
+	@echo "⏪ Откат последней миграции..."
+	@./scripts/manage-migrations.sh rollback
 
 ecommerce-test: ## Тестирование функций интернет-магазина
 	@echo "🧪 Тестирование функций интернет-магазина..."
