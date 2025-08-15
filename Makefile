@@ -198,6 +198,44 @@ apply-migration: ## Применить миграцию на сервере
 	fi
 	@./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) $(MIGRATION)
 
+# Применение всех миграций по порядку на сервере
+apply-all-migrations: ## Применить все миграций по порядку на сервере
+	@echo "🗄️  Применение всех миграций по порядку на сервере..."
+	@echo "Использование: make apply-all-migrations ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make apply-all-migrations ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@echo "🚀 Применение миграций в порядке:"
+	@echo "   001_initial_schema.sql"
+	@echo "   002_update_existing_schema.sql"
+	@echo "   003_update_users_table.sql"
+	@echo "   004_example_add_user_phone.sql"
+	@echo "   005_fix_sku_constraint.sql"
+	@echo "   006_replace_weight_dimensions_with_color_size.sql"
+	@echo "   007_add_stock_type_to_products.sql"
+	@echo ""
+	@./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 001_initial_schema && \
+	./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 002_update_existing_schema && \
+	./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 003_update_users_table && \
+	./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 004_example_add_user_phone && \
+	./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 005_fix_sku_constraint && \
+	./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 006_replace_weight_dimensions_with_color_size && \
+	./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) 007_add_stock_type_to_products && \
+	echo "✅ Все миграции успешно применены!"
+
+# Удаление файла minio.go с сервера
+remove-minio: ## Удалить файл minio.go с сервера
+	@echo "🗑️  Удаление файла minio.go с сервера..."
+	@echo "Использование: make remove-minio ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make remove-minio ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@ssh "$(USER)@$(SERVER)" "rm -f /root/api-go/database/minio.go && echo '✅ Файл minio.go удален с сервера'"
+
 # Проверка конфигурации
 check-config: ## Проверка конфигурации
 	@echo "🔍 Проверка конфигурации..."

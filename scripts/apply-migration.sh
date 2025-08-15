@@ -57,7 +57,24 @@ ssh "$USER@$SERVER" << EOF
     # Проверяем, что PostgreSQL запущен
     if ! docker ps | grep -q "postgres"; then
         echo "PostgreSQL не запущен. Запускаем docker-compose..."
-        cd /root/api-go
+        
+        # Ищем docker-compose.yml в разных местах
+        if [ -f "/root/api-go/docker-compose.yml" ]; then
+            cd /root/api-go
+        elif [ -f "/home/root/api-go/docker-compose.yml" ]; then
+            cd /home/root/api-go
+        elif [ -f "/opt/api-go/docker-compose.yml" ]; then
+            cd /opt/api-go
+        else
+            echo "❌ docker-compose.yml не найден. Проверяем текущую директорию..."
+            pwd
+            ls -la
+            echo "Попытка найти docker-compose.yml..."
+            find / -name "docker-compose.yml" -type f 2>/dev/null | head -5
+            exit 1
+        fi
+        
+        echo "Запуск PostgreSQL из директории: \$(pwd)"
         docker-compose up -d postgres
         sleep 10
     fi
