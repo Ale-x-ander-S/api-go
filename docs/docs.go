@@ -1562,41 +1562,57 @@ const docTemplate = `{
             ],
             "properties": {
                 "category_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "color": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Titanium"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Смартфон Apple с чипом A17 Pro"
                 },
                 "image_url": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "https://example.com/iphone15.jpg"
                 },
                 "is_active": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "is_featured": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "iPhone 15 Pro"
                 },
                 "price": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 999.99
                 },
                 "size": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "6.1 inch"
                 },
                 "sku": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "IPHONE15-PRO"
                 },
                 "sort_order": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "stock": {
                     "type": "integer",
-                    "minimum": 0
+                    "minimum": 0,
+                    "example": 50
+                },
+                "stock_type": {
+                    "type": "string",
+                    "example": "piece"
                 }
             }
         },
@@ -1604,10 +1620,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "limit": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 10
                 },
                 "page": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "products": {
                     "type": "array",
@@ -1616,7 +1634,8 @@ const docTemplate = `{
                     }
                 },
                 "total": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 100
                 }
             }
         },
@@ -1624,52 +1643,72 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "category_slug": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "smartphones"
                 },
                 "color": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Titanium"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-08-15T10:00:00Z"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Смартфон Apple с чипом A17 Pro"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "image_url": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "https://example.com/iphone15.jpg"
                 },
                 "is_active": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "is_featured": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "iPhone 15 Pro"
                 },
                 "price": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 999.99
                 },
                 "size": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "6.1 inch"
                 },
                 "sku": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "IPHONE15-PRO"
                 },
                 "sort_order": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "stock": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 50
+                },
+                "stock_type": {
+                    "type": "string",
+                    "example": "piece"
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-08-15T10:00:00Z"
                 }
             }
         },
@@ -1677,41 +1716,57 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "color": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Titanium"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Обновленное описание продукта"
                 },
                 "image_url": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "https://example.com/iphone15-updated.jpg"
                 },
                 "is_active": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "is_featured": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": false
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "iPhone 15 Pro Updated"
                 },
                 "price": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 899.99
                 },
                 "size": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "6.1 inch"
                 },
                 "sku": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "IPHONE15-PRO-UPD"
                 },
                 "sort_order": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2
                 },
                 "stock": {
                     "type": "integer",
-                    "minimum": 0
+                    "minimum": 0,
+                    "example": 45
+                },
+                "stock_type": {
+                    "type": "string",
+                    "example": "piece"
                 }
             }
         },

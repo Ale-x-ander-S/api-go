@@ -207,30 +207,45 @@ definitions:
   models.ProductCreateRequest:
     properties:
       category_id:
+        example: 1
         type: integer
       color:
+        example: Titanium
         type: string
       description:
+        example: Смартфон Apple с чипом A17 Pro
         type: string
       image_url:
+        example: https://example.com/iphone15.jpg
         type: string
       is_active:
+        example: true
         type: boolean
       is_featured:
+        example: true
         type: boolean
       name:
+        example: iPhone 15 Pro
         type: string
       price:
+        example: 999.99
         type: number
       size:
+        example: 6.1 inch
         type: string
       sku:
+        example: IPHONE15-PRO
         type: string
       sort_order:
+        example: 1
         type: integer
       stock:
+        example: 50
         minimum: 0
         type: integer
+      stock_type:
+        example: piece
+        type: string
     required:
     - name
     - price
@@ -238,78 +253,115 @@ definitions:
   models.ProductListResponse:
     properties:
       limit:
+        example: 10
         type: integer
       page:
+        example: 1
         type: integer
       products:
         items:
           $ref: '#/definitions/models.ProductResponse'
         type: array
       total:
+        example: 100
         type: integer
     type: object
   models.ProductResponse:
     properties:
       category_id:
+        example: 1
         type: integer
       category_slug:
+        example: smartphones
         type: string
       color:
+        example: Titanium
         type: string
       created_at:
+        example: "2025-08-15T10:00:00Z"
         type: string
       description:
+        example: Смартфон Apple с чипом A17 Pro
         type: string
       id:
+        example: 1
         type: integer
       image_url:
+        example: https://example.com/iphone15.jpg
         type: string
       is_active:
+        example: true
         type: boolean
       is_featured:
+        example: true
         type: boolean
       name:
+        example: iPhone 15 Pro
         type: string
       price:
+        example: 999.99
         type: number
       size:
+        example: 6.1 inch
         type: string
       sku:
+        example: IPHONE15-PRO
         type: string
       sort_order:
+        example: 1
         type: integer
       stock:
+        example: 50
         type: integer
+      stock_type:
+        example: piece
+        type: string
       updated_at:
+        example: "2025-08-15T10:00:00Z"
         type: string
     type: object
   models.ProductUpdateRequest:
     properties:
       category_id:
+        example: 1
         type: integer
       color:
+        example: Titanium
         type: string
       description:
+        example: Обновленное описание продукта
         type: string
       image_url:
+        example: https://example.com/iphone15-updated.jpg
         type: string
       is_active:
+        example: true
         type: boolean
       is_featured:
+        example: false
         type: boolean
       name:
+        example: iPhone 15 Pro Updated
         type: string
       price:
+        example: 899.99
         type: number
       size:
+        example: 6.1 inch
         type: string
       sku:
+        example: IPHONE15-PRO-UPD
         type: string
       sort_order:
+        example: 2
         type: integer
       stock:
+        example: 45
         minimum: 0
         type: integer
+      stock_type:
+        example: piece
+        type: string
     type: object
   models.UserCreateRequest:
     properties:

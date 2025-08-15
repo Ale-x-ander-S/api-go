@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS products (
     price DECIMAL(10,2) NOT NULL,
     category_id INTEGER REFERENCES categories(id),
     stock INTEGER DEFAULT 0,
+    stock_type VARCHAR(50) DEFAULT 'piece',
     image_url VARCHAR(255),
     sku VARCHAR(100) UNIQUE,
     	color VARCHAR(50),
