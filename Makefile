@@ -35,6 +35,16 @@ build: ## Собрать приложение
 
 # Запуск приложения
 run: ## Запустить приложение
+	@echo "🔌 Освобождение порта 8080..."
+	@if lsof -ti:8080 > /dev/null 2>&1; then \
+		echo "Порт 8080 занят, останавливаем процесс..."; \
+		lsof -ti:8080 | xargs kill -9 2>/dev/null || true; \
+		echo "Порт 8080 освобожден"; \
+		sleep 1; \
+	else \
+		echo "Порт 8080 свободен"; \
+	fi
+	@echo "🚀 Запуск приложения..."
 	go run $(MAIN_FILE)
 
 # Запуск с автоматической генерацией Swagger
@@ -121,6 +131,21 @@ db-drop: ## Удалить базу данных (требует psql)
 	@echo "Удаление базы данных products_db..."
 	@psql -U postgres -c "DROP DATABASE IF EXISTS products_db;"
 
+db-migrate: ## Применить миграцию локально
+	@echo "🗄️  Применение миграции локально..."
+	@echo "Использование: make db-migrate MIGRATION=006_replace_weight_dimensions_with_color_size"
+	@if [ -z "$(MIGRATION)" ]; then \
+		echo "❌ Укажите MIGRATION"; \
+		echo "Пример: make db-migrate MIGRATION=006_replace_weight_dimensions_with_color_size"; \
+		exit 1; \
+	fi
+	@if [ ! -f "migrations/$(MIGRATION).sql" ]; then \
+		echo "❌ Файл миграции не найден: migrations/$(MIGRATION).sql"; \
+		exit 1; \
+	fi
+	@echo "Применение миграции $(MIGRATION)..."
+	@psql -U postgres -d products_db -f migrations/$(MIGRATION).sql && echo "✅ Миграция успешно применена" || echo "❌ Ошибка применения миграции"
+
 # Redis команды
 redis-start: ## Запустить Redis локально
 	@echo "Запуск Redis..."
@@ -161,6 +186,17 @@ deploy-code-only: swagger ## Быстрое обновление только к
 		exit 1; \
 	fi
 	@./scripts/deploy-code-only.sh $(ENV) $(SERVER) $(USER)
+
+# Применение миграции на сервере
+apply-migration: ## Применить миграцию на сервере
+	@echo "🗄️  Применение миграции на сервере..."
+	@echo "Использование: make apply-migration ENV=prod SERVER=YOUR_IP USER=root MIGRATION=006_replace_weight_dimensions_with_color_size"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ] || [ -z "$(MIGRATION)" ]; then \
+		echo "❌ Укажите ENV, SERVER и MIGRATION"; \
+		echo "Пример: make apply-migration ENV=prod SERVER=45.12.229.112 USER=root MIGRATION=006_replace_weight_dimensions_with_color_size"; \
+		exit 1; \
+	fi
+	@./scripts/apply-migration.sh $(ENV) $(SERVER) $(USER) $(MIGRATION)
 
 # Проверка конфигурации
 check-config: ## Проверка конфигурации

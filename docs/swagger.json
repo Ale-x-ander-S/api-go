@@ -1562,10 +1562,10 @@
                 "category_id": {
                     "type": "integer"
                 },
-                "description": {
+                "color": {
                     "type": "string"
                 },
-                "dimensions": {
+                "description": {
                     "type": "string"
                 },
                 "image_url": {
@@ -1583,6 +1583,9 @@
                 "price": {
                     "type": "number"
                 },
+                "size": {
+                    "type": "string"
+                },
                 "sku": {
                     "type": "string"
                 },
@@ -1592,9 +1595,6 @@
                 "stock": {
                     "type": "integer",
                     "minimum": 0
-                },
-                "weight": {
-                    "type": "number"
                 }
             }
         },
@@ -1627,13 +1627,13 @@
                 "category_slug": {
                     "type": "string"
                 },
+                "color": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "description": {
-                    "type": "string"
-                },
-                "dimensions": {
                     "type": "string"
                 },
                 "id": {
@@ -1654,6 +1654,9 @@
                 "price": {
                     "type": "number"
                 },
+                "size": {
+                    "type": "string"
+                },
                 "sku": {
                     "type": "string"
                 },
@@ -1665,9 +1668,6 @@
                 },
                 "updated_at": {
                     "type": "string"
-                },
-                "weight": {
-                    "type": "number"
                 }
             }
         },
@@ -1677,10 +1677,10 @@
                 "category_id": {
                     "type": "integer"
                 },
-                "description": {
+                "color": {
                     "type": "string"
                 },
-                "dimensions": {
+                "description": {
                     "type": "string"
                 },
                 "image_url": {
@@ -1698,6 +1698,9 @@
                 "price": {
                     "type": "number"
                 },
+                "size": {
+                    "type": "string"
+                },
                 "sku": {
                     "type": "string"
                 },
@@ -1707,9 +1710,6 @@
                 "stock": {
                     "type": "integer",
                     "minimum": 0
-                },
-                "weight": {
-                    "type": "number"
                 }
             }
         },

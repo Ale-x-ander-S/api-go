@@ -14,8 +14,8 @@ type Product struct {
 	Stock       int       `json:"stock" db:"stock" binding:"gte=0"`
 	ImageURL    string    `json:"image_url" db:"image_url"`
 	SKU         string    `json:"sku" db:"sku"`
-	Weight      *float64  `json:"weight" db:"weight"`
-	Dimensions  string    `json:"dimensions" db:"dimensions"`
+	Color       string    `json:"color" db:"color"`
+	Size        string    `json:"size" db:"size"`
 	IsActive    bool      `json:"is_active" db:"is_active"`
 	IsFeatured  bool      `json:"is_featured" db:"is_featured"`
 	SortOrder   int       `json:"sort_order" db:"sort_order"`
@@ -25,18 +25,18 @@ type Product struct {
 
 // ProductCreateRequest представляет запрос на создание продукта
 type ProductCreateRequest struct {
-	Name        string   `json:"name" binding:"required"`
-	Description string   `json:"description"`
-	Price       float64  `json:"price" binding:"required,gt=0"`
-	CategoryID  *int     `json:"category_id"`
-	Stock       int      `json:"stock" binding:"gte=0"`
-	ImageURL    string   `json:"image_url"`
-	SKU         string   `json:"sku"`
-	Weight      *float64 `json:"weight"`
-	Dimensions  string   `json:"dimensions"`
-	IsActive    bool     `json:"is_active"`
-	IsFeatured  bool     `json:"is_featured"`
-	SortOrder   int      `json:"sort_order"`
+	Name        string  `json:"name" binding:"required"`
+	Description string  `json:"description"`
+	Price       float64 `json:"price" binding:"required,gt=0"`
+	CategoryID  *int    `json:"category_id"`
+	Stock       int     `json:"stock" binding:"gte=0"`
+	ImageURL    string  `json:"image_url"`
+	SKU         string  `json:"sku"`
+	Color       string  `json:"color"`
+	Size        string  `json:"size"`
+	IsActive    bool    `json:"is_active"`
+	IsFeatured  bool    `json:"is_featured"`
+	SortOrder   int     `json:"sort_order"`
 }
 
 // ProductUpdateRequest представляет запрос на обновление продукта
@@ -48,8 +48,8 @@ type ProductUpdateRequest struct {
 	Stock       *int     `json:"stock" binding:"omitempty,gte=0"`
 	ImageURL    *string  `json:"image_url"`
 	SKU         *string  `json:"sku"`
-	Weight      *float64 `json:"weight"`
-	Dimensions  *string  `json:"dimensions"`
+	Color       *string  `json:"color"`
+	Size        *string  `json:"size"`
 	IsActive    *bool    `json:"is_active"`
 	IsFeatured  *bool    `json:"is_featured"`
 	SortOrder   *int     `json:"sort_order"`
@@ -66,8 +66,8 @@ type ProductResponse struct {
 	Stock        int       `json:"stock"`
 	ImageURL     string    `json:"image_url"`
 	SKU          string    `json:"sku"`
-	Weight       *float64  `json:"weight"`
-	Dimensions   string    `json:"dimensions"`
+	Color        string    `json:"color"`
+	Size         string    `json:"size"`
 	IsActive     bool      `json:"is_active"`
 	IsFeatured   bool      `json:"is_featured"`
 	SortOrder    int       `json:"sort_order"`

@@ -1564,10 +1564,10 @@ const docTemplate = `{
                 "category_id": {
                     "type": "integer"
                 },
-                "description": {
+                "color": {
                     "type": "string"
                 },
-                "dimensions": {
+                "description": {
                     "type": "string"
                 },
                 "image_url": {
@@ -1585,6 +1585,9 @@ const docTemplate = `{
                 "price": {
                     "type": "number"
                 },
+                "size": {
+                    "type": "string"
+                },
                 "sku": {
                     "type": "string"
                 },
@@ -1594,9 +1597,6 @@ const docTemplate = `{
                 "stock": {
                     "type": "integer",
                     "minimum": 0
-                },
-                "weight": {
-                    "type": "number"
                 }
             }
         },
@@ -1629,13 +1629,13 @@ const docTemplate = `{
                 "category_slug": {
                     "type": "string"
                 },
+                "color": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "description": {
-                    "type": "string"
-                },
-                "dimensions": {
                     "type": "string"
                 },
                 "id": {
@@ -1656,6 +1656,9 @@ const docTemplate = `{
                 "price": {
                     "type": "number"
                 },
+                "size": {
+                    "type": "string"
+                },
                 "sku": {
                     "type": "string"
                 },
@@ -1667,9 +1670,6 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
-                },
-                "weight": {
-                    "type": "number"
                 }
             }
         },
@@ -1679,10 +1679,10 @@ const docTemplate = `{
                 "category_id": {
                     "type": "integer"
                 },
-                "description": {
+                "color": {
                     "type": "string"
                 },
-                "dimensions": {
+                "description": {
                     "type": "string"
                 },
                 "image_url": {
@@ -1700,6 +1700,9 @@ const docTemplate = `{
                 "price": {
                     "type": "number"
                 },
+                "size": {
+                    "type": "string"
+                },
                 "sku": {
                     "type": "string"
                 },
@@ -1709,9 +1712,6 @@ const docTemplate = `{
                 "stock": {
                     "type": "integer",
                     "minimum": 0
-                },
-                "weight": {
-                    "type": "number"
                 }
             }
         },

@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS products_new (
     stock INTEGER DEFAULT 0 CHECK (stock >= 0),
     image_url TEXT,
     sku VARCHAR(100) UNIQUE,
-    weight DECIMAL(8,2),
-    dimensions VARCHAR(50),
+    	color VARCHAR(50),
+	size VARCHAR(50),
     is_active BOOLEAN DEFAULT true,
     is_featured BOOLEAN DEFAULT false,
     sort_order INTEGER DEFAULT 0,
@@ -48,8 +48,8 @@ UPDATE products SET category_id = 4 WHERE name LIKE '%мяч%';
 
 -- Добавляем недостающие поля в таблицу products
 ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(100);
-ALTER TABLE products ADD COLUMN IF NOT EXISTS weight DECIMAL(8,2);
-ALTER TABLE products ADD COLUMN IF NOT EXISTS dimensions VARCHAR(50);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS color VARCHAR(50);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS size VARCHAR(50);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;

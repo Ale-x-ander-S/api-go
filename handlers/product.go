@@ -52,11 +52,11 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 	var product models.Product
 	err := h.db.QueryRow(`
-		INSERT INTO products (name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
-	`, req.Name, req.Description, req.Price, req.CategoryID, req.Stock, req.ImageURL, req.SKU, req.Weight, req.Dimensions, req.IsActive, req.IsFeatured, req.SortOrder,
-	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
+			INSERT INTO products (name, description, price, category_id, stock, image_url, sku, color, size, is_active, is_featured, sort_order)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	RETURNING id, name, description, price, category_id, stock, image_url, sku, color, size, is_active, is_featured, sort_order, created_at, updated_at
+	`, req.Name, req.Description, req.Price, req.CategoryID, req.Stock, req.ImageURL, req.SKU, req.Color, req.Size, req.IsActive, req.IsFeatured, req.SortOrder,
+	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Color, &product.Size, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания продукта: " + err.Error()})
@@ -77,8 +77,8 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Stock:       product.Stock,
 		ImageURL:    product.ImageURL,
 		SKU:         product.SKU,
-		Weight:      product.Weight,
-		Dimensions:  product.Dimensions,
+		Color:       product.Color,
+		Size:        product.Size,
 		IsActive:    product.IsActive,
 		IsFeatured:  product.IsFeatured,
 		SortOrder:   product.SortOrder,
@@ -195,7 +195,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 
 	// Получаем продукты
 	query := fmt.Sprintf(`
-		SELECT p.id, p.name, p.description, p.price, COALESCE(p.category_id, 0), p.stock, COALESCE(p.image_url, ''), COALESCE(p.sku, ''), COALESCE(p.weight, 0), COALESCE(p.dimensions, ''), p.is_active, p.is_featured, p.sort_order, p.created_at, p.updated_at, c.slug as category_slug
+		SELECT p.id, p.name, p.description, p.price, COALESCE(p.category_id, 0), p.stock, COALESCE(p.image_url, ''), COALESCE(p.sku, ''), COALESCE(p.color, ''), COALESCE(p.size, ''), p.is_active, p.is_featured, p.sort_order, p.created_at, p.updated_at, c.slug as category_slug
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id
 		%s
@@ -223,7 +223,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	for rows.Next() {
 		var product models.Product
 		var categorySlug sql.NullString
-		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt, &categorySlug)
+		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Color, &product.Size, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt, &categorySlug)
 		if err != nil {
 			log.Printf("DEBUG: Error scanning row: %v", err)
 			continue
@@ -239,8 +239,8 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 			Stock:       product.Stock,
 			ImageURL:    product.ImageURL,
 			SKU:         product.SKU,
-			Weight:      product.Weight,
-			Dimensions:  product.Dimensions,
+			Color:       product.Color,
+			Size:        product.Size,
 			IsActive:    product.IsActive,
 			IsFeatured:  product.IsFeatured,
 			SortOrder:   product.SortOrder,
@@ -263,7 +263,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		if err != nil {
 			// Кэш пустой, получаем все продукты с категориями и сохраняем
 			allProductsQuery := `
-				SELECT p.id, p.name, p.description, p.price, COALESCE(p.category_id, 0), p.stock, COALESCE(p.image_url, ''), COALESCE(p.sku, ''), COALESCE(p.weight, 0), COALESCE(p.dimensions, ''), p.is_active, p.is_featured, p.sort_order, p.created_at, p.updated_at, c.slug as category_slug
+				SELECT p.id, p.name, p.description, p.price, COALESCE(p.category_id, 0), p.stock, COALESCE(p.image_url, ''), COALESCE(p.sku, ''), COALESCE(p.color, ''), COALESCE(p.size, ''), p.is_active, p.is_featured, p.sort_order, p.created_at, p.updated_at, c.slug as category_slug
 				FROM products p
 				LEFT JOIN categories c ON p.category_id = c.id
 				WHERE p.is_active = true
@@ -276,7 +276,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 				for allRows.Next() {
 					var product models.Product
 					var categorySlug sql.NullString
-					err := allRows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt, &categorySlug)
+					err := allRows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Color, &product.Size, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt, &categorySlug)
 					if err == nil {
 						response := models.ProductResponse{
 							ID:          product.ID,
@@ -287,8 +287,8 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 							Stock:       product.Stock,
 							ImageURL:    product.ImageURL,
 							SKU:         product.SKU,
-							Weight:      product.Weight,
-							Dimensions:  product.Dimensions,
+							Color:       product.Color,
+							Size:        product.Size,
 							IsActive:    product.IsActive,
 							IsFeatured:  product.IsFeatured,
 							SortOrder:   product.SortOrder,
@@ -351,9 +351,9 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 
 	var product models.Product
 	err = h.db.QueryRow(`
-		SELECT id, name, description, price, COALESCE(category_id, 0), stock, COALESCE(image_url, ''), COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
+		SELECT id, name, description, price, COALESCE(category_id, 0), stock, COALESCE(image_url, ''), COALESCE(sku, ''), COALESCE(color, ''), COALESCE(size, ''), is_active, is_featured, sort_order, created_at, updated_at
 		FROM products WHERE id = $1 AND is_active = true
-	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
+	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Color, &product.Size, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -375,8 +375,8 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 			Stock:       product.Stock,
 			ImageURL:    product.ImageURL,
 			SKU:         product.SKU,
-			Weight:      product.Weight,
-			Dimensions:  product.Dimensions,
+			Color:       product.Color,
+			Size:        product.Size,
 			IsActive:    product.IsActive,
 			IsFeatured:  product.IsFeatured,
 			SortOrder:   product.SortOrder,
@@ -395,8 +395,8 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		Stock:       product.Stock,
 		ImageURL:    product.ImageURL,
 		SKU:         product.SKU,
-		Weight:      product.Weight,
-		Dimensions:  product.Dimensions,
+		Color:       product.Color,
+		Size:        product.Size,
 		IsActive:    product.IsActive,
 		IsFeatured:  product.IsFeatured,
 		SortOrder:   product.SortOrder,
@@ -491,15 +491,15 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		argIndex++
 	}
 
-	if req.Weight != nil {
-		query += fmt.Sprintf(", weight = $%d", argIndex)
-		args = append(args, *req.Weight)
+	if req.Color != nil {
+		query += fmt.Sprintf(", color = $%d", argIndex)
+		args = append(args, *req.Color)
 		argIndex++
 	}
 
-	if req.Dimensions != nil {
-		query += fmt.Sprintf(", dimensions = $%d", argIndex)
-		args = append(args, *req.Dimensions)
+	if req.Size != nil {
+		query += fmt.Sprintf(", size = $%d", argIndex)
+		args = append(args, *req.Size)
 		argIndex++
 	}
 
@@ -533,9 +533,9 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	// Получаем обновленный продукт
 	var product models.Product
 	err = h.db.QueryRow(`
-		SELECT id, name, description, price, category_id, stock, image_url, sku, weight, dimensions, is_active, is_featured, sort_order, created_at, updated_at
+		SELECT id, name, description, price, category_id, stock, image_url, sku, color, size, is_active, is_featured, sort_order, created_at, updated_at
 		FROM products WHERE id = $1
-	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
+	`, id).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU, &product.Color, &product.Size, &product.IsActive, &product.IsFeatured, &product.SortOrder, &product.CreatedAt, &product.UpdatedAt)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения обновленного продукта"})
@@ -556,8 +556,8 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 		Stock:       product.Stock,
 		ImageURL:    product.ImageURL,
 		SKU:         product.SKU,
-		Weight:      product.Weight,
-		Dimensions:  product.Dimensions,
+		Color:       product.Color,
+		Size:        product.Size,
 		IsActive:    product.IsActive,
 		IsFeatured:  product.IsFeatured,
 		SortOrder:   product.SortOrder,

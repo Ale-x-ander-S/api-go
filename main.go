@@ -179,7 +179,7 @@ func startRedisAutomatically() error {
 func initializeProductCache(db *sql.DB, redisClient *database.RedisClient) error {
 	// Получаем все активные продукты из базы данных
 	rows, err := db.Query(`
-		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(weight, 0), COALESCE(dimensions, ''), is_active, is_featured, sort_order, created_at, updated_at
+		SELECT id, name, description, price, COALESCE(category_id, 0), stock, image_url, COALESCE(sku, ''), COALESCE(color, ''), COALESCE(size, ''), is_active, is_featured, sort_order, created_at, updated_at
 		FROM products 
 		WHERE is_active = true 
 		ORDER BY created_at DESC
@@ -195,7 +195,7 @@ func initializeProductCache(db *sql.DB, redisClient *database.RedisClient) error
 		err := rows.Scan(
 			&product.ID, &product.Name, &product.Description, &product.Price,
 			&product.CategoryID, &product.Stock, &product.ImageURL, &product.SKU,
-			&product.Weight, &product.Dimensions, &product.IsActive, &product.IsFeatured,
+			&product.Color, &product.Size, &product.IsActive, &product.IsFeatured,
 			&product.SortOrder, &product.CreatedAt, &product.UpdatedAt,
 		)
 		if err != nil {
@@ -212,8 +212,8 @@ func initializeProductCache(db *sql.DB, redisClient *database.RedisClient) error
 			Stock:       product.Stock,
 			ImageURL:    product.ImageURL,
 			SKU:         product.SKU,
-			Weight:      product.Weight,
-			Dimensions:  product.Dimensions,
+			Color:       product.Color,
+			Size:        product.Size,
 			IsActive:    product.IsActive,
 			IsFeatured:  product.IsFeatured,
 			SortOrder:   product.SortOrder,
