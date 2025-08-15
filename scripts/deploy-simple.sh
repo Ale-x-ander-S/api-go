@@ -17,6 +17,62 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# Функция применения миграций на удаленном сервере
+apply_remote_migrations() {
+    log_info "🔄 Применение миграций на удаленном сервере..."
+    
+    # Копируем скрипт миграций на сервер
+    scp "scripts/remote-migrations.sh" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
+    
+    # Применяем миграции
+    ssh "$REMOTE_USER@$SERVER_IP" "
+        cd $REMOTE_DIR 2>/dev/null || exit 0
+        chmod +x remote-migrations.sh
+        ./remote-migrations.sh
+    "
+    
+    log_success "Миграции применены на удаленном сервере"
+}
+
+# Функция проверки консистентности БД на удаленном сервере
+check_remote_database_consistency() {
+    log_info "🔍 Проверка консистентности БД на удаленном сервере..."
+    
+    ssh "$REMOTE_USER@$SERVER_IP" "
+        cd $REMOTE_DIR 2>/dev/null || exit 0
+        
+        # Проверяем основные таблицы
+        echo '=== Проверка консистентности БД ==='
+        
+        # Проверяем таблицу миграций
+        docker exec \$(docker-compose -f docker-compose-simple.yml ps -q postgres) psql -U postgres -d products_db_prod -c \"
+            SELECT 
+                COUNT(*) as total_migrations,
+                COUNT(CASE WHEN applied_at IS NOT NULL THEN 1 END) as applied_migrations
+            FROM schema_migrations;
+        \" 2>/dev/null || echo 'Таблица миграций не найдена'
+        
+        # Проверяем основные таблицы
+        docker exec \$(docker-compose -f docker-compose-simple.yml ps -q postgres) psql -U postgres -d products_db_prod -c \"
+            SELECT 
+                'users' as table_name, COUNT(*) as record_count FROM users
+            UNION ALL
+            SELECT 
+                'products' as table_name, COUNT(*) as record_count FROM products
+            UNION ALL
+            SELECT 
+                'categories' as table_name, COUNT(*) as record_count FROM categories
+            UNION ALL
+            SELECT 
+                'orders' as table_name, COUNT(*) as record_count FROM orders;
+        \" 2>/dev/null || echo 'Ошибка проверки таблиц'
+        
+        echo ''
+    "
+    
+    log_success "Проверка консистентности завершена"
+}
+
 # Проверка аргументов
 if [ $# -lt 2 ]; then
     log_error "Использование: $0 [staging|prod] [server_ip] [user]"
@@ -33,9 +89,11 @@ REMOTE_DIR="/opt/api-go"
 case $ENVIRONMENT in
     staging)
         DOCKER_COMPOSE_FILE="docker-compose.staging.yml"
+        API_PORT="8081"
         ;;
     prod|production)
         DOCKER_COMPOSE_FILE="docker-compose.prod.yml"
+        API_PORT="8080"
         ;;
     *)
         log_error "Неверное окружение: $ENVIRONMENT"
@@ -48,6 +106,7 @@ log_info "🚀 Простой деплой без healthcheck"
 log_info "Окружение: $ENVIRONMENT"
 log_info "Сервер: $SERVER_IP"
 log_info "Пользователь: $REMOTE_USER"
+log_info "API порт: $API_PORT"
 echo ""
 
 # Проверка SSH соединения
@@ -75,7 +134,7 @@ scp -r "models" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warnin
 scp -r "routes" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка routes не найдена"
 scp -r "middleware" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка middleware не найдена"
 scp -r "utils" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка utils не найдена"
-scp -r "config" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка config не найдена"
+scp -r "config" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка models не найдена"
 scp -r "cache" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка cache не найдена"
 scp -r "database" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/" 2>/dev/null || log_warning "Папка database не найдена"
 log_success "Файлы скопированы на сервер"
@@ -85,15 +144,25 @@ log_info "🛑 Остановка всех сервисов..."
 ssh "$REMOTE_USER@$SERVER_IP" "
     cd $REMOTE_DIR 2>/dev/null || exit 0
     docker-compose -f $DOCKER_COMPOSE_FILE down --remove-orphans --volumes 2>/dev/null || true
+    docker-compose -f docker-compose-simple.yml down --remove-orphans --volumes 2>/dev/null || true
 "
 
 # Очистка Docker
 log_info "🧹 Очистка Docker..."
 ssh "$REMOTE_USER@$SERVER_IP" "
-    docker system prune -af --volumes 2>/dev/null || true
-    docker volume prune -f 2>/dev/null || true
+    docker system prune -af 2>/dev/null || true
     docker network prune -f 2>/dev/null || true
 "
+
+# Генерация JWT секрета
+JWT_SECRET=$(openssl rand -hex 32)
+DB_PASSWORD=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)
+REDIS_PASSWORD=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)
+
+log_info "🔐 Генерация секретов..."
+log_info "JWT_SECRET: $JWT_SECRET"
+log_info "DB_PASSWORD: $DB_PASSWORD"
+log_info "REDIS_PASSWORD: $REDIS_PASSWORD"
 
 # Создание простого docker-compose без healthcheck
 log_info "📝 Создание простой конфигурации без healthcheck..."
@@ -101,7 +170,7 @@ ssh "$REMOTE_USER@$SERVER_IP" "
     cd $REMOTE_DIR 2>/dev/null || exit 0
     
     # Создаем простой файл без healthcheck
-    cat > docker-compose-simple.yml << 'EOF'
+    cat > docker-compose-simple.yml << EOF
 services:
   # PostgreSQL база данных
   postgres:
@@ -110,10 +179,10 @@ services:
     environment:
       POSTGRES_DB: products_db_prod
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Mo5dos!sod5oM
+      POSTGRES_PASSWORD: $DB_PASSWORD
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - '5434:5432'
+      - '5432:5432'
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -126,12 +195,12 @@ services:
     image: redis:7-alpine
     container_name: products_redis_prod
     ports:
-      - '6381:6379'
+      - '6379:6379'
     volumes:
       - redis_data_prod:/data
     networks:
       - products_network_prod
-    command: redis-server --appendonly yes --requirepass Mo5dos!sod5oM
+    command: redis-server --appendonly yes --requirepass $REDIS_PASSWORD
     restart: unless-stopped
 
   # API приложение
@@ -139,18 +208,18 @@ services:
     build: .
     container_name: products_api_prod
     ports:
-      - '8082:8080'
+      - '$API_PORT:8080'
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
-      DB_PASSWORD: Mo5dos!sod5oM
+      DB_PASSWORD: $DB_PASSWORD
       DB_NAME: products_db_prod
       DB_SSL_MODE: disable
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: Mo5dos!sod5oM
-      JWT_SECRET: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJwcm9kdWN0cy1hcGkiLCJpc3MiOiJhcGktZ28iLCJhdWQiOiJwcm9kdWN0cy1jbGllbnQiLCJpYXQiOjE3MzQ1NjgwMDAsIm5iZiI6MTczNDU2ODAwMCwiZXhwIjoyMTAwMDAwMDAwfQ.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8
+      REDIS_PASSWORD: $REDIS_PASSWORD
+      JWT_SECRET: $JWT_SECRET
       ENVIRONMENT: production
       LOG_LEVEL: debug
       PORT: 8080
@@ -209,23 +278,35 @@ ssh "$REMOTE_USER@$SERVER_IP" "
     
     echo ''
     echo '=== Тест Redis ==='
-    docker exec \$(docker-compose -f docker-compose-simple.yml ps -q redis) redis-cli ping 2>/dev/null && echo 'Redis отвечает' || echo 'Redis не отвечает'
+    docker exec \$(docker-compose -f docker-compose-simple.yml ps -q redis) redis-cli -a $REDIS_PASSWORD ping 2>/dev/null && echo 'Redis отвечает' || echo 'Redis не отвечает'
     
     echo ''
     echo '=== Тест API ==='
-    docker exec \$(docker-compose -f docker-compose-simple.yml ps -q api) wget --no-verbose --tries=1 --spider http://localhost:8080/health 2>/dev/null && echo 'API отвечает' || echo 'API не отвечает'
+    docker exec \$(docker-compose -f docker-compose-simple.yml ps -q api) wget --no-verbose --tries=1 --spider http://localhost:8080/ 2>/dev/null && echo 'API отвечает' || echo 'API не отвечает'
 "
 
 # Проверка доступности API
 log_info "🌐 Проверка доступности API..."
-if [ "$ENVIRONMENT" = "prod" ]; then
-    API_PORT="8082"
-else
-    API_PORT="8081"
-fi
-
-if curl -s --connect-timeout 10 "http://$SERVER_IP:$API_PORT/health" > /dev/null; then
+if curl -s --connect-timeout 10 "http://$SERVER_IP:$API_PORT/" > /dev/null; then
     log_success "✅ API доступен по адресу: http://$SERVER_IP:$API_PORT"
+    
+    # Тест основных эндпоинтов
+    log_info "🧪 Тестирование основных эндпоинтов..."
+    
+    # Тест Swagger
+    if curl -s --connect-timeout 10 "http://$SERVER_IP:$API_PORT/swagger/index.html" > /dev/null; then
+        log_success "✅ Swagger доступен: http://$SERVER_IP:$API_PORT/swagger/index.html"
+    else
+        log_warning "⚠️  Swagger недоступен"
+    fi
+    
+    # Тест продуктов
+    if curl -s --connect-timeout 10 "http://$SERVER_IP:$API_PORT/api/v1/products" > /dev/null; then
+        log_success "✅ API продуктов работает"
+    else
+        log_warning "⚠️  API продуктов не отвечает"
+    fi
+    
 else
     log_warning "⚠️  API пока недоступен"
 fi
@@ -246,65 +327,15 @@ log_info "📋 Следующие шаги:"
 echo "1. Проверьте что все сервисы работают:"
 echo "   ssh $REMOTE_USER@$SERVER_IP 'cd $REMOTE_DIR && docker-compose -f docker-compose-simple.yml ps'"
 echo ""
-echo "2. Когда все будет работать, можете вернуть healthcheck:"
+echo "2. API доступен по адресу: http://$SERVER_IP:$API_PORT"
+echo "3. Swagger документация: http://$SERVER_IP:$API_PORT/swagger/index.html"
+echo ""
+echo "4. Для тестирования используйте:"
+echo "   curl http://$SERVER_IP:$API_PORT/api/v1/products"
+echo ""
+echo "5. Когда все будет работать, можете вернуть healthcheck:"
 echo "   - Раскомментируйте healthcheck в $DOCKER_COMPOSE_FILE"
 echo "   - Перезапустите с основным файлом"
 echo ""
-echo "3. Или используйте простой файл для production:"
+echo "6. Или используйте простой файл для production:"
 echo "   docker-compose -f docker-compose-simple.yml up -d" 
-
-# Функция применения миграций на удаленном сервере
-apply_remote_migrations() {
-    log_info "🔄 Применение миграций на удаленном сервере..."
-    
-    # Копируем скрипт миграций на сервер
-    scp "scripts/remote-migrations.sh" "$REMOTE_USER@$SERVER_IP:$REMOTE_DIR/"
-    
-    # Применяем миграции
-    ssh "$REMOTE_USER@$SERVER_IP" "
-        cd $REMOTE_DIR 2>/dev/null || exit 0
-        chmod +x remote-migrations.sh
-        ./remote-migrations.sh
-    "
-    
-    log_success "Миграции применены на удаленном сервере"
-}
-
-# Функция проверки консистентности БД на удаленном сервере
-check_remote_database_consistency() {
-    log_info "🔍 Проверка консистентности БД на удаленном сервере..."
-    
-    ssh "$REMOTE_USER@$SERVER_IP" "
-        cd $REMOTE_DIR 2>/dev/null || exit 0
-        
-        # Проверяем основные таблицы
-        echo '=== Проверка консистентности БД ==='
-        
-        # Проверяем таблицу миграций
-        docker exec \$(docker-compose -f docker-compose-simple.yml ps -q postgres) psql -U postgres -d products_db_prod -c \"
-            SELECT 
-                COUNT(*) as total_migrations,
-                COUNT(CASE WHEN applied_at IS NOT NULL THEN 1 END) as applied_migrations
-            FROM schema_migrations;
-        \" 2>/dev/null || echo 'Таблица миграций не найдена'
-        
-        # Проверяем основные таблицы
-        docker exec \$(docker-compose -f docker-compose-simple.yml ps -q postgres) psql -U postgres -d products_db_prod -c \"
-            SELECT 
-                'users' as table_name, COUNT(*) as record_count FROM users
-            UNION ALL
-            SELECT 
-                'products' as table_name, COUNT(*) as record_count FROM products
-            UNION ALL
-            SELECT 
-                'categories' as table_name, COUNT(*) as record_count FROM categories
-            UNION ALL
-            SELECT 
-                'orders' as table_name, COUNT(*) as record_count FROM orders;
-        \" 2>/dev/null || echo 'Ошибка проверки таблиц'
-        
-        echo ''
-    "
-    
-    log_success "Проверка консистентности завершена"
-} 

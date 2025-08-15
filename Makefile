@@ -422,6 +422,26 @@ deploy-local: ## Локальный деплой
 	@echo "🏠 Локальный деплой..."
 	@./deploy.sh dev
 
+deploy-cloud-local: ## Деплой на облачный сервер с локальной конфигурацией
+	@echo "☁️  Деплой на облачный сервер с локальной конфигурацией..."
+	@echo "Использование: make deploy-cloud-local ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make deploy-cloud-local ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/deploy-cloud-local.sh $(ENV) $(SERVER) $(USER)
+
+deploy-code-only: ## Быстрое обновление только кода на сервере
+	@echo "⚡ Быстрое обновление только кода..."
+	@echo "Использование: make deploy-code-only ENV=prod SERVER=YOUR_IP USER=root"
+	@if [ -z "$(ENV)" ] || [ -z "$(SERVER)" ]; then \
+		echo "❌ Укажите ENV и SERVER"; \
+		echo "Пример: make deploy-code-only ENV=prod SERVER=45.12.229.112 USER=root"; \
+		exit 1; \
+	fi
+	@./scripts/deploy-code-only.sh $(ENV) $(SERVER) $(USER)
+
 check-config: ## Проверка конфигурации
 	@echo "🔍 Проверка конфигурации..."
 	@./scripts/check-config.sh
