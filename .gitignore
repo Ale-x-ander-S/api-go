@@ -1,54 +1,57 @@
-# Бинарные файлы
+# Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-api-go
-main
 
-# Тестовые файлы
+# Test binary, built with `go test -c`
 *.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Временные файлы
-*.tmp
-*.temp
+# Dependency directories (remove the comment below to include it)
+# vendor/
 
-# Логи
-*.log
+# Go workspace file
+go.work
 
-# Конфигурационные файлы с секретами
+# Binary
+api-go
+
+# Environment files
 .env
 config.*.env
-*.key
-*.pem
+!config.env
 
-# Swagger документация (генерируется автоматически)
-docs/
+# Logs
+*.log
+app.log
 
-# IDE файлы
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# OS файлы
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-
-# Go специфичные файлы
-vendor/
-go.sum
 
 # Docker
 .dockerignore
 
-# Air (автоперезагрузка)
-tmp/ 
+# Air
+tmp/
+
+# Swagger docs (optional - uncomment if you want to ignore generated docs)
+# docs/
+
+# Backup files
+*.bak
+*.backup
+
+# Temporary files
+*.tmp
+*.temp 

@@ -82,9 +82,7 @@ log_info "Найдено запущенных сервисов: $SERVICES_RUNNIN
 
 if [ "$SERVICES_RUNNING" -eq "0" ]; then
     log_error "❌ Сервисы не запущены! Сначала выполните полный деплой:"
-    echo "   make deploy-simple ENV=$ENVIRONMENT SERVER=$SERVER_IP USER=$REMOTE_USER"
-    echo "   или"
-    echo "   make deploy-cloud-local ENV=$ENVIRONMENT SERVER=$SERVER_IP USER=$REMOTE_USER"
+    echo "   make full-deploy ENV=$ENVIRONMENT SERVER=$SERVER_IP USER=$REMOTE_USER"
     exit 1
 fi
 
@@ -262,6 +260,4 @@ echo "5. Управление API:"
 echo "   ssh $REMOTE_USER@$SERVER_IP 'cd $REMOTE_DIR && docker-compose -f $ACTIVE_COMPOSE_FILE logs -f api'"
 echo ""
 echo "6. Для полного обновления используйте:"
-echo "   make deploy-simple ENV=$ENVIRONMENT SERVER=$SERVER_IP USER=$REMOTE_USER"
-echo "   или"
-echo "   make deploy-cloud-local ENV=$ENVIRONMENT SERVER=$SERVER_IP USER=$REMOTE_USER" 
+echo "   make full-deploy ENV=$ENVIRONMENT SERVER=$SERVER_IP USER=$REMOTE_USER" 

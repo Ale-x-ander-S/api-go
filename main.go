@@ -23,7 +23,7 @@ import (
 // @title Products API
 // @version 1.0
 // @description REST API для управления продуктами с Redis кэшированием
-// @host localhost:8080
+// @host 45.12.229.112:8080
 // @BasePath /api/v1
 // @schemes http https
 

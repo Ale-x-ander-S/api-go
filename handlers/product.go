@@ -140,7 +140,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	offset := (page - 1) * limit
 
 	// Формируем SQL запрос
-	whereClause := "WHERE is_active = true"
+	whereClause := "WHERE p.is_active = true"
 	args := []interface{}{}
 	argIndex := 1
 
@@ -181,7 +181,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 
 	// Получаем общее количество продуктов
 	var total int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products %s", whereClause)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products p %s", whereClause)
 	log.Printf("DEBUG: Count Query: %s", countQuery)
 	log.Printf("DEBUG: Count Args: %v", args)
 
